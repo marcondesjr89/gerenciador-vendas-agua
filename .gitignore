@@ -1,0 +1,22 @@
+# Agent Local Governance & Caches
+.local-project/
+.agents/
+AGENTS.md
+*.scratch.*
+
+# Java & Build Tools
+target/
+build/
+*.class
+*.jar
+*.war
+*.ear
+
+# IDEs & Editor files
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+*.log
