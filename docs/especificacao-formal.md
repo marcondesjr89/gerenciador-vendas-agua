@@ -27,8 +27,8 @@ O **Gerenciador de Vendas de Água Mineral** é uma aplicação monolítica modu
 | **RF-002** | Controle de Acesso Baseado em Perfis (RBAC) | Restringir rotas e ações no sistema conforme o perfil do usuário logado (`ADMIN` vs `ATENDENTE`). | Menus e endpoints administrativos inacessíveis para o perfil `ATENDENTE`. | Tentativa de acesso a rotas restritas resulta em HTTP 403 / página de acesso negado amigável. |
 | **RF-003** | Cadastro e Gestão de Clientes | Permitir a inclusão, alteração, consulta e listagem de clientes. | Campos obrigatórios: Nome e Telefone. Telefone deve permitir busca rápida (indexado). | Não permitir cadastros com telefone vazio. Busca parcial por nome ou telefone deve retornar resultados em tempo hábil. |
 | **RF-004** | Gestão de Endereços para Entrega | Registrar endereço detalhado vinculado ao cliente para expedição de entregas. | Logradouro, Número, Bairro e Ponto de Referência (opcional: complemento). | Endereço exibido de forma proeminente na ordem de entrega do pedido. |
-| **RF-005** | Catálogo de Produtos e Preços | Gerenciar produtos com seus preços e tipos operacionais. | Tipos de Produto: `AGUA_COMPLETA` (água + vasilhame), `REFIL` (somente líquido com troca), `VASILHAME_VAZIO`. | Preço de venda deve ser maior que zero. |
-| **RF-006** | Controle Dual de Estoque de Vasilhames | Manter o saldo em tempo real de garrafões cheios e garrafões vazios retornados. | 1. Venda `AGUA_COMPLETA`: decrementa estoque de cheios.<br>2. Venda `REFIL`: decrementa estoque de cheios E incrementa estoque de vazios.<br>3. Venda `VASILHAME_VAZIO`: decrementa estoque de vazios. | Nenhuma venda de produto com estoque insuficiente de cheios deve ser confirmada sem aviso ao operador. |
+| **RF-005** | Catálogo de Produtos, Volumes e Preços | Gerenciar catálogo de produtos com diferentes litragens (ex: 20L, 10L, 5L, 1.5L, 500ml) e classificação de retornabilidade. | Campos: Nome, Capacidade em Litros (`capacidade_litros`), indicador `retornavel` (booleano) e Tipo: `AGUA_COMPLETA` (água + vasilhame), `REFIL` (líquido com troca), `VASILHAME_VAZIO`, `DESCARTAVEL`. | Preço de venda e capacidade em litros devem ser maiores que zero. |
+| **RF-006** | Controle de Estoque por Produto e Vasilhame | Manter o saldo em tempo real de unidades cheias e vasilhames vazios segregados por produto e litragem. | 1. Venda `AGUA_COMPLETA`: decrementa cheios do produto.<br>2. Venda `REFIL` (somente produtos retornáveis): decrementa cheios e incrementa vazios do respectivo produto/litragem.<br>3. Venda `VASILHAME_VAZIO`: decrementa vazios do produto.<br>4. Venda `DESCARTAVEL`: decrementa estoque de cheios sem gerar vasilhame vazio. | Bloqueio de venda de itens com estoque insuficiente de cheios sem confirmação explícita do operador. |
 | **RF-007** | Abertura e Registro de Pedidos (PDV) | Registrar pedidos selecionando cliente (ou venda anônima no balcão), itens, quantidades e forma de atendimento. | Modalidades: `BALCAO` (retirada imediata) ou `ENTREGA` (despacho externo). | Cálculo automático de subtotal, taxa de entrega e valor total. |
 | **RF-008** | Taxa de Entrega Configurável | Permitir a aplicação de taxa de entrega no pedido. | Pode ser preenchida com valor padrão global configurado ou zerada para entregas isentas. | A taxa de entrega compõe o valor final a ser pago pelo cliente. |
 | **RF-009** | Máquina de Estados do Pedido | Controlar o ciclo de vida do pedido através de transições de status válidas. | Estados: `PENDENTE` ➔ `EM_ENTREGA` ➔ `CONCLUIDO`. Estado `CANCELADO` disponível a partir de `PENDENTE` ou `EM_ENTREGA`. | Cancelamento de pedido deve estornar imediatamente as movimentações de estoque registradas. |
@@ -129,13 +129,15 @@ Armazena a base de consumidores e seus endereços para agilizar contatos e entre
 - `data_cadastro` (TIMESTAMP, NOT NULL): Data e hora do registro.
 
 ### 5.3 Tabela `produtos`
-Catálogo de itens comercializados com segregação de tipo e controle duplo de estoque de vasilhames.
+Catálogo de itens comercializados com segregação de litragem, tipo e controle de estoque de cheios e vasilhames vazios (para retornáveis).
 - `id` (BIGSERIAL, PK): Identificador único do produto.
-- `nome` (VARCHAR(100), NOT NULL): Ex: "Água Mineral 20L Galão Completo", "Refil Água Mineral 20L".
-- `tipo_produto` (VARCHAR(30), NOT NULL): `AGUA_COMPLETA`, `REFIL`, `VASILHAME_VAZIO`.
+- `nome` (VARCHAR(100), NOT NULL): Ex: "Água Mineral 20L Galão Completo", "Refil Água Mineral 20L", "Refil Galão 10L", "Água Mineral 500ml Sem Gás".
+- `capacidade_litros` (NUMERIC(5,2), NOT NULL): Capacidade em litros (ex: 20.00, 10.00, 5.00, 1.50, 0.50, 0.20).
+- `retornavel` (BOOLEAN, NOT NULL, DEFAULT TRUE): Indica se o item exige/controla o retorno de vasilhame vazio (ex: 20L e 10L retornáveis = true; 500ml descartável = false).
+- `tipo_produto` (VARCHAR(30), NOT NULL): `AGUA_COMPLETA`, `REFIL`, `VASILHAME_VAZIO`, `DESCARTAVEL`.
 - `preco_venda` (NUMERIC(10,2), NOT NULL): Valor unitário cobrado.
-- `estoque_cheios` (INTEGER, NOT NULL, DEFAULT 0): Quantidade disponível com água.
-- `estoque_vazios` (INTEGER, NOT NULL, DEFAULT 0): Quantidade de vasilhames vazios no depósito.
+- `estoque_cheios` (INTEGER, NOT NULL, DEFAULT 0): Quantidade disponível com água para venda.
+- `estoque_vazios` (INTEGER, NOT NULL, DEFAULT 0): Quantidade de vasilhames vazios no depósito (aplicável quando `retornavel = true`).
 - `ativo` (BOOLEAN, NOT NULL, DEFAULT TRUE): Se o produto está ativo para venda.
 
 ### 5.4 Tabela `pedidos`
