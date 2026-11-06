@@ -1,8 +1,8 @@
 package com.distribuidora.agua.catalog.application;
 
 import com.distribuidora.agua.catalog.domain.Product;
+import com.distribuidora.agua.catalog.domain.ProductType;
 import com.distribuidora.agua.catalog.domain.StockMovementStrategy;
-import com.distribuidora.agua.catalog.domain.TipoProduto;
 import com.distribuidora.agua.catalog.infrastructure.ProductRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,41 +21,41 @@ public class StockMovementService {
     }
 
     @Transactional
-    public void movimentarBaixa(Product product, int quantity) {
-        validarQuantidade(quantity);
-        StockMovementStrategy strategy = resolveStrategy(product.getTipoProduto());
+    public void debitStock(Product product, int quantity) {
+        validateQuantity(quantity);
+        StockMovementStrategy strategy = resolveStrategy(product.getProductType());
         strategy.debitStock(product, quantity);
         productRepository.save(product);
     }
 
     @Transactional
-    public void movimentarEstorno(Product product, int quantity) {
-        validarQuantidade(quantity);
-        StockMovementStrategy strategy = resolveStrategy(product.getTipoProduto());
+    public void creditStock(Product product, int quantity) {
+        validateQuantity(quantity);
+        StockMovementStrategy strategy = resolveStrategy(product.getProductType());
         strategy.creditStock(product, quantity);
         productRepository.save(product);
     }
 
     @Transactional
-    public void ajustarEstoque(Product product, int novosCheios, int novosVazios) {
-        if (novosCheios < 0 || novosVazios < 0) {
-            throw new IllegalArgumentException("Os saldos de estoque nao podem ser negativos");
+    public void adjustStock(Product product, int newStockFull, int newStockEmpty) {
+        if (newStockFull < 0 || newStockEmpty < 0) {
+            throw new IllegalArgumentException("Stock balances cannot be negative");
         }
-        product.setEstoqueCheios(novosCheios);
-        product.setEstoqueVazios(novosVazios);
+        product.setStockFull(newStockFull);
+        product.setStockEmpty(newStockEmpty);
         productRepository.save(product);
     }
 
-    private void validarQuantidade(int quantity) {
+    private void validateQuantity(int quantity) {
         if (quantity <= 0) {
-            throw new IllegalArgumentException("A quantidade deve ser maior que zero");
+            throw new IllegalArgumentException("Quantity must be greater than zero");
         }
     }
 
-    private StockMovementStrategy resolveStrategy(TipoProduto tipoProduto) {
+    private StockMovementStrategy resolveStrategy(ProductType productType) {
         return strategies.stream()
-                .filter(strategy -> strategy.supports(tipoProduto))
+                .filter(strategy -> strategy.supports(productType))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Nenhuma estrategia de estoque encontrada para o tipo: " + tipoProduto));
+                .orElseThrow(() -> new IllegalStateException("No stock strategy found for product type: " + productType));
     }
 }

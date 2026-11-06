@@ -1,56 +1,56 @@
 -- ===================================================================
--- Migration V1: Estrutura Inicial do Banco de Dados
--- Modulos: catalog, orders, payment
+-- Migration V1: Initial Database Schema (100% English Conventions)
+-- Modules: catalog, orders, payment
 -- ===================================================================
 
--- Tabela de Produtos (Modulo: catalog)
-CREATE TABLE IF NOT EXISTS produtos (
+-- Products Table (Module: catalog)
+CREATE TABLE IF NOT EXISTS products (
     id BIGSERIAL PRIMARY KEY,
     sku VARCHAR(40) NOT NULL UNIQUE,
-    nome VARCHAR(120) NOT NULL,
-    capacidade_litros NUMERIC(5,2) NOT NULL,
-    retornavel BOOLEAN NOT NULL DEFAULT TRUE,
-    tipo_produto VARCHAR(30) NOT NULL,
-    preco_venda NUMERIC(10,2) NOT NULL,
-    estoque_cheios INTEGER NOT NULL DEFAULT 0,
-    estoque_vazios INTEGER NOT NULL DEFAULT 0,
-    ativo BOOLEAN NOT NULL DEFAULT TRUE,
-    versao BIGINT NOT NULL DEFAULT 0
+    name VARCHAR(120) NOT NULL,
+    capacity_liters NUMERIC(5,2) NOT NULL,
+    returnable BOOLEAN NOT NULL DEFAULT TRUE,
+    product_type VARCHAR(30) NOT NULL,
+    unit_price NUMERIC(10,2) NOT NULL,
+    stock_full INTEGER NOT NULL DEFAULT 0,
+    stock_empty INTEGER NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    version BIGINT NOT NULL DEFAULT 0
 );
 
--- Tabela de Pedidos (Modulo: orders)
-CREATE TABLE IF NOT EXISTS pedidos (
+-- Orders Table (Module: orders)
+CREATE TABLE IF NOT EXISTS orders (
     id BIGSERIAL PRIMARY KEY,
-    codigo_pedido VARCHAR(40) NOT NULL UNIQUE,
-    cliente_nome VARCHAR(100) NOT NULL,
-    cliente_telefone VARCHAR(20) NOT NULL,
-    modalidade VARCHAR(20) NOT NULL,
+    order_code VARCHAR(40) NOT NULL UNIQUE,
+    customer_name VARCHAR(100) NOT NULL,
+    customer_phone VARCHAR(20) NOT NULL,
+    modality VARCHAR(20) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    forma_pagamento VARCHAR(20) NOT NULL,
+    payment_method VARCHAR(20) NOT NULL,
     subtotal NUMERIC(10,2) NOT NULL,
-    taxa_entrega NUMERIC(10,2) NOT NULL DEFAULT 0.00,
-    valor_total NUMERIC(10,2) NOT NULL,
-    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    delivery_fee NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    total_amount NUMERIC(10,2) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabela de Itens de Pedido (Modulo: orders)
-CREATE TABLE IF NOT EXISTS itens_pedido (
+-- Order Items Table (Module: orders)
+CREATE TABLE IF NOT EXISTS order_items (
     id BIGSERIAL PRIMARY KEY,
-    pedido_id BIGINT NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-    produto_id BIGINT NOT NULL REFERENCES produtos(id),
-    quantidade INTEGER NOT NULL,
-    preco_unitario NUMERIC(10,2) NOT NULL,
-    valor_total_item NUMERIC(10,2) NOT NULL,
-    recolheu_vasilhame BOOLEAN NOT NULL DEFAULT FALSE
+    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id BIGINT NOT NULL REFERENCES products(id),
+    quantity INTEGER NOT NULL,
+    unit_price NUMERIC(10,2) NOT NULL,
+    total_item_amount NUMERIC(10,2) NOT NULL,
+    bottles_returned BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- Tabela de Pagamentos (Modulo: payment)
-CREATE TABLE IF NOT EXISTS pagamentos (
+-- Payments Table (Module: payment)
+CREATE TABLE IF NOT EXISTS payments (
     id BIGSERIAL PRIMARY KEY,
-    pedido_id BIGINT NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     idempotency_key VARCHAR(80) NOT NULL UNIQUE,
-    forma_pagamento VARCHAR(20) NOT NULL,
-    valor_pago NUMERIC(10,2) NOT NULL,
+    payment_method VARCHAR(20) NOT NULL,
+    paid_amount NUMERIC(10,2) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    processado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,7 +1,7 @@
 package com.distribuidora.agua.catalog.infrastructure;
 
 import com.distribuidora.agua.catalog.domain.Product;
-import com.distribuidora.agua.catalog.domain.TipoProduto;
+import com.distribuidora.agua.catalog.domain.ProductType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,97 +28,97 @@ class ProductRepositoryTest {
     private TestEntityManager entityManager;
 
     @Test
-    @DisplayName("Deve salvar e recuperar produto por SKU")
-    void deveSalvarERecuperarPorSku() {
+    @DisplayName("Should save and retrieve product by SKU")
+    void shouldSaveAndRetrieveBySku() {
         Product product = Product.builder()
-                .sku("GALAO-20L-COMPLETO")
-                .nome("Galao 20L Completo (Agua + Vasilhame)")
-                .capacidadeLitros(new BigDecimal("20.00"))
-                .retornavel(true)
-                .tipoProduto(TipoProduto.AGUA_COMPLETA)
-                .precoVenda(new BigDecimal("35.00"))
-                .estoqueCheios(40)
-                .estoqueVazios(10)
-                .ativo(true)
+                .sku("GALLON-20L-COMPLETE")
+                .name("Mineral Water Gallon 20L Complete (Water + Bottle)")
+                .capacityLiters(new BigDecimal("20.00"))
+                .returnable(true)
+                .productType(ProductType.FULL_WATER)
+                .unitPrice(new BigDecimal("35.00"))
+                .stockFull(40)
+                .stockEmpty(10)
+                .active(true)
                 .build();
 
         Product saved = productRepository.save(product);
         assertThat(saved.getId()).isNotNull();
 
-        Optional<Product> found = productRepository.findBySku("GALAO-20L-COMPLETO");
+        Optional<Product> found = productRepository.findBySku("GALLON-20L-COMPLETE");
         assertThat(found).isPresent();
-        assertThat(found.get().getNome()).isEqualTo("Galao 20L Completo (Agua + Vasilhame)");
-        assertThat(found.get().getTipoProduto()).isEqualTo(TipoProduto.AGUA_COMPLETA);
-        assertThat(found.get().getVersao()).isNotNull();
+        assertThat(found.get().getName()).isEqualTo("Mineral Water Gallon 20L Complete (Water + Bottle)");
+        assertThat(found.get().getProductType()).isEqualTo(ProductType.FULL_WATER);
+        assertThat(found.get().getVersion()).isNotNull();
     }
 
     @Test
-    @DisplayName("Deve listar apenas produtos ativos")
-    void deveListarApenasAtivos() {
+    @DisplayName("Should list only active products")
+    void shouldListOnlyActiveProducts() {
         Product p1 = Product.builder()
-                .sku("AGUA-500ML")
-                .nome("Garrafa 500ml")
-                .capacidadeLitros(new BigDecimal("0.50"))
-                .retornavel(false)
-                .tipoProduto(TipoProduto.DESCARTAVEL)
-                .precoVenda(new BigDecimal("2.50"))
-                .estoqueCheios(100)
-                .estoqueVazios(0)
-                .ativo(true)
+                .sku("BOTTLE-500ML")
+                .name("Water Bottle 500ml")
+                .capacityLiters(new BigDecimal("0.50"))
+                .returnable(false)
+                .productType(ProductType.DISPOSABLE)
+                .unitPrice(new BigDecimal("2.50"))
+                .stockFull(100)
+                .stockEmpty(0)
+                .active(true)
                 .build();
 
         Product p2 = Product.builder()
-                .sku("GALAO-10L-INATIVO")
-                .nome("Galao 10L Fora de Linha")
-                .capacidadeLitros(new BigDecimal("10.00"))
-                .retornavel(true)
-                .tipoProduto(TipoProduto.REFIL)
-                .precoVenda(new BigDecimal("12.00"))
-                .estoqueCheios(0)
-                .estoqueVazios(0)
-                .ativo(false)
+                .sku("GALLON-10L-INACTIVE")
+                .name("Gallon 10L Discontinued")
+                .capacityLiters(new BigDecimal("10.00"))
+                .returnable(true)
+                .productType(ProductType.REFILL)
+                .unitPrice(new BigDecimal("12.00"))
+                .stockFull(0)
+                .stockEmpty(0)
+                .active(false)
                 .build();
 
         productRepository.save(p1);
         productRepository.save(p2);
 
-        List<Product> ativos = productRepository.findByAtivoTrue();
-        assertThat(ativos).extracting(Product::getSku).contains("AGUA-500ML");
-        assertThat(ativos).extracting(Product::getSku).doesNotContain("GALAO-10L-INATIVO");
+        List<Product> activeProducts = productRepository.findByActiveTrue();
+        assertThat(activeProducts).extracting(Product::getSku).contains("BOTTLE-500ML");
+        assertThat(activeProducts).extracting(Product::getSku).doesNotContain("GALLON-10L-INACTIVE");
     }
 
     @Test
-    @DisplayName("Deve detectar conflito de concorrencia otimista com @Version")
-    void deveDetectarConflitoConcorrenciaOtimista() {
+    @DisplayName("Should detect optimistic locking conflict with @Version")
+    void shouldDetectOptimisticLockingConflict() {
         Product product = Product.builder()
-                .sku("GALAO-20L-LOCK")
-                .nome("Galao 20L Concorrencia")
-                .capacidadeLitros(new BigDecimal("20.00"))
-                .retornavel(true)
-                .tipoProduto(TipoProduto.AGUA_COMPLETA)
-                .precoVenda(new BigDecimal("30.00"))
-                .estoqueCheios(10)
-                .estoqueVazios(5)
-                .ativo(true)
+                .sku("GALLON-20L-LOCK")
+                .name("Gallon 20L Concurrency Test")
+                .capacityLiters(new BigDecimal("20.00"))
+                .returnable(true)
+                .productType(ProductType.FULL_WATER)
+                .unitPrice(new BigDecimal("30.00"))
+                .stockFull(10)
+                .stockEmpty(5)
+                .active(true)
                 .build();
 
         Product saved = productRepository.saveAndFlush(product);
         Long id = saved.getId();
 
-        // Carrega primeira instancia e a desanexa da sessao
+        // Load first instance and detach from persistence context
         Product instance1 = productRepository.findById(id).orElseThrow();
         entityManager.detach(instance1);
 
-        // Carrega segunda instancia e realiza atualizacao concorrente
+        // Load second instance and perform concurrent update
         Product instance2 = productRepository.findById(id).orElseThrow();
-        instance2.setEstoqueCheios(15);
+        instance2.setStockFull(15);
         productRepository.saveAndFlush(instance2);
 
-        // Limpa o contexto para forcar merge da instancia 1 desatualizada
+        // Clear persistence context to force merge on outdated instance 1
         entityManager.clear();
 
-        // A instancia 1 possui versao desatualizada (versao = 0, enquanto no banco ja e 1)
-        instance1.setEstoqueCheios(20);
+        // Instance 1 has outdated version (version = 0, while in DB version is now 1)
+        instance1.setStockFull(20);
         assertThatThrownBy(() -> productRepository.saveAndFlush(instance1))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }

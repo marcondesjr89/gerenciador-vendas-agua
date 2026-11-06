@@ -1,12 +1,12 @@
 package com.distribuidora.agua.catalog.application;
 
-import com.distribuidora.agua.catalog.domain.AguaCompletaStockStrategy;
-import com.distribuidora.agua.catalog.domain.DescartavelStockStrategy;
+import com.distribuidora.agua.catalog.domain.DisposableStockStrategy;
+import com.distribuidora.agua.catalog.domain.EmptyBottleStockStrategy;
+import com.distribuidora.agua.catalog.domain.FullWaterStockStrategy;
 import com.distribuidora.agua.catalog.domain.Product;
-import com.distribuidora.agua.catalog.domain.RefilStockStrategy;
+import com.distribuidora.agua.catalog.domain.ProductType;
+import com.distribuidora.agua.catalog.domain.RefillStockStrategy;
 import com.distribuidora.agua.catalog.domain.StockMovementStrategy;
-import com.distribuidora.agua.catalog.domain.TipoProduto;
-import com.distribuidora.agua.catalog.domain.VasilhameVazioStockStrategy;
 import com.distribuidora.agua.catalog.infrastructure.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,98 +35,98 @@ class StockMovementServiceTest {
     @BeforeEach
     void setUp() {
         List<StockMovementStrategy> strategies = List.of(
-                new AguaCompletaStockStrategy(),
-                new RefilStockStrategy(),
-                new VasilhameVazioStockStrategy(),
-                new DescartavelStockStrategy()
+                new FullWaterStockStrategy(),
+                new RefillStockStrategy(),
+                new EmptyBottleStockStrategy(),
+                new DisposableStockStrategy()
         );
         stockMovementService = new StockMovementService(strategies, productRepository);
 
         product = Product.builder()
                 .id(10L)
-                .sku("REFIL-20L")
-                .nome("Refil Galao 20L")
-                .capacidadeLitros(new BigDecimal("20.00"))
-                .retornavel(true)
-                .tipoProduto(TipoProduto.REFIL)
-                .precoVenda(new BigDecimal("15.00"))
-                .estoqueCheios(20)
-                .estoqueVazios(10)
-                .ativo(true)
+                .sku("REFILL-20L")
+                .name("Refill Mineral Water Gallon 20L")
+                .capacityLiters(new BigDecimal("20.00"))
+                .returnable(true)
+                .productType(ProductType.REFILL)
+                .unitPrice(new BigDecimal("15.00"))
+                .stockFull(20)
+                .stockEmpty(10)
+                .active(true)
                 .build();
     }
 
     @Test
-    @DisplayName("Deve movimentar baixa com sucesso delegando para a strategy correta")
-    void deveMovimentarBaixa() {
-        stockMovementService.movimentarBaixa(product, 5);
+    @DisplayName("Should successfully debit stock delegating to the appropriate strategy")
+    void shouldDebitStock() {
+        stockMovementService.debitStock(product, 5);
 
-        assertThat(product.getEstoqueCheios()).isEqualTo(15);
-        assertThat(product.getEstoqueVazios()).isEqualTo(15);
+        assertThat(product.getStockFull()).isEqualTo(15);
+        assertThat(product.getStockEmpty()).isEqualTo(15);
         verify(productRepository).save(product);
     }
 
     @Test
-    @DisplayName("Deve movimentar estorno com sucesso delegando para a strategy correta")
-    void deveMovimentarEstorno() {
-        stockMovementService.movimentarEstorno(product, 2);
+    @DisplayName("Should successfully credit stock on refund delegating to the strategy")
+    void shouldCreditStock() {
+        stockMovementService.creditStock(product, 2);
 
-        assertThat(product.getEstoqueCheios()).isEqualTo(22);
-        assertThat(product.getEstoqueVazios()).isEqualTo(8);
+        assertThat(product.getStockFull()).isEqualTo(22);
+        assertThat(product.getStockEmpty()).isEqualTo(8);
         verify(productRepository).save(product);
     }
 
     @Test
-    @DisplayName("Deve falhar ao tentar movimentar quantidade menor ou igual a zero")
-    void deveFalharQuantidadeInvalida() {
-        assertThatThrownBy(() -> stockMovementService.movimentarBaixa(product, 0))
+    @DisplayName("Should fail when trying to move quantity less than or equal to zero")
+    void shouldFailInvalidQuantity() {
+        assertThatThrownBy(() -> stockMovementService.debitStock(product, 0))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("A quantidade deve ser maior que zero");
+                .hasMessageContaining("Quantity must be greater than zero");
 
-        assertThatThrownBy(() -> stockMovementService.movimentarEstorno(product, -1))
+        assertThatThrownBy(() -> stockMovementService.creditStock(product, -1))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("A quantidade deve ser maior que zero");
+                .hasMessageContaining("Quantity must be greater than zero");
     }
 
     @Test
-    @DisplayName("Deve ajustar estoque diretamente com valores validos")
-    void deveAjustarEstoqueDiretamente() {
-        stockMovementService.ajustarEstoque(product, 50, 30);
+    @DisplayName("Should adjust stock directly with valid values")
+    void shouldAdjustStockDirectly() {
+        stockMovementService.adjustStock(product, 50, 30);
 
-        assertThat(product.getEstoqueCheios()).isEqualTo(50);
-        assertThat(product.getEstoqueVazios()).isEqualTo(30);
+        assertThat(product.getStockFull()).isEqualTo(50);
+        assertThat(product.getStockEmpty()).isEqualTo(30);
         verify(productRepository).save(product);
     }
 
     @Test
-    @DisplayName("Deve permitir ajuste de estoque para limite inferior zero")
-    void devePermitirAjusteParaZero() {
-        stockMovementService.ajustarEstoque(product, 0, 0);
+    @DisplayName("Should allow adjusting stock to valid zero lower boundary")
+    void shouldAllowAdjustingStockToZero() {
+        stockMovementService.adjustStock(product, 0, 0);
 
-        assertThat(product.getEstoqueCheios()).isZero();
-        assertThat(product.getEstoqueVazios()).isZero();
+        assertThat(product.getStockFull()).isZero();
+        assertThat(product.getStockEmpty()).isZero();
         verify(productRepository).save(product);
     }
 
     @Test
-    @DisplayName("Deve falhar ao ajustar estoque com valores negativos")
-    void deveFalharAjusteEstoqueNegativo() {
-        assertThatThrownBy(() -> stockMovementService.ajustarEstoque(product, -5, 10))
+    @DisplayName("Should fail when adjusting stock with negative values")
+    void shouldFailAdjustStockNegative() {
+        assertThatThrownBy(() -> stockMovementService.adjustStock(product, -5, 10))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Os saldos de estoque nao podem ser negativos");
+                .hasMessageContaining("Stock balances cannot be negative");
 
-        assertThatThrownBy(() -> stockMovementService.ajustarEstoque(product, 10, -2))
+        assertThatThrownBy(() -> stockMovementService.adjustStock(product, 10, -2))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Os saldos de estoque nao podem ser negativos");
+                .hasMessageContaining("Stock balances cannot be negative");
     }
 
     @Test
-    @DisplayName("Deve lancar IllegalStateException se nao houver strategy para o TipoProduto")
-    void deveFalharQuandoStrategyNaoEncontrada() {
-        StockMovementService servicoSemStrategies = new StockMovementService(Collections.emptyList(), productRepository);
+    @DisplayName("Should throw IllegalStateException if no strategy is found for ProductType")
+    void shouldFailWhenStrategyNotFound() {
+        StockMovementService serviceWithoutStrategies = new StockMovementService(Collections.emptyList(), productRepository);
 
-        assertThatThrownBy(() -> servicoSemStrategies.movimentarBaixa(product, 1))
+        assertThatThrownBy(() -> serviceWithoutStrategies.debitStock(product, 1))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Nenhuma estrategia de estoque encontrada");
+                .hasMessageContaining("No stock strategy found");
     }
 }

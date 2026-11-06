@@ -14,7 +14,7 @@ import java.math.BigDecimal;
 import java.util.Objects;
 
 @Entity
-@Table(name = "produtos")
+@Table(name = "products")
 public class Product {
 
     @Id
@@ -25,60 +25,60 @@ public class Product {
     private String sku;
 
     @Column(nullable = false, length = 120)
-    private String nome;
+    private String name;
 
-    @Column(name = "capacidade_litros", nullable = false, precision = 5, scale = 2)
-    private BigDecimal capacidadeLitros;
+    @Column(name = "capacity_liters", nullable = false, precision = 5, scale = 2)
+    private BigDecimal capacityLiters;
 
     @Column(nullable = false)
-    private boolean retornavel;
+    private boolean returnable;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "tipo_produto", nullable = false, length = 30)
-    private TipoProduto tipoProduto;
+    @Column(name = "product_type", nullable = false, length = 30)
+    private ProductType productType;
 
-    @Column(name = "preco_venda", nullable = false, precision = 10, scale = 2)
-    private BigDecimal precoVenda;
+    @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
+    private BigDecimal unitPrice;
 
-    @Column(name = "estoque_cheios", nullable = false)
-    private int estoqueCheios;
+    @Column(name = "stock_full", nullable = false)
+    private int stockFull;
 
-    @Column(name = "estoque_vazios", nullable = false)
-    private int estoqueVazios;
+    @Column(name = "stock_empty", nullable = false)
+    private int stockEmpty;
 
     @Column(nullable = false)
-    private boolean ativo = true;
+    private boolean active = true;
 
     @Version
     @Column(nullable = false)
-    private Long versao;
+    private Long version;
 
     protected Product() {
     }
 
-    public Product(Long id, String sku, String nome, BigDecimal capacidadeLitros, boolean retornavel,
-                   TipoProduto tipoProduto, BigDecimal precoVenda, int estoqueCheios, int estoqueVazios,
-                   boolean ativo, Long versao) {
+    public Product(Long id, String sku, String name, BigDecimal capacityLiters, boolean returnable,
+                   ProductType productType, BigDecimal unitPrice, int stockFull, int stockEmpty,
+                   boolean active, Long version) {
         this.id = id;
-        this.sku = Objects.requireNonNull(sku, "SKU nao pode ser nulo");
-        this.nome = Objects.requireNonNull(nome, "Nome nao pode ser nulo");
-        this.capacidadeLitros = Objects.requireNonNull(capacidadeLitros, "Capacidade em litros nao pode ser nula");
-        if (capacidadeLitros.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Capacidade em litros deve ser maior que zero");
+        this.sku = Objects.requireNonNull(sku, "SKU must not be null");
+        this.name = Objects.requireNonNull(name, "Name must not be null");
+        this.capacityLiters = Objects.requireNonNull(capacityLiters, "Capacity in liters must not be null");
+        if (capacityLiters.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Capacity in liters must be greater than zero");
         }
-        this.retornavel = retornavel;
-        this.tipoProduto = Objects.requireNonNull(tipoProduto, "Tipo do produto nao pode ser nulo");
-        this.precoVenda = Objects.requireNonNull(precoVenda, "Preco de venda nao pode ser nulo");
-        if (precoVenda.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Preco de venda deve ser maior que zero");
+        this.returnable = returnable;
+        this.productType = Objects.requireNonNull(productType, "Product type must not be null");
+        this.unitPrice = Objects.requireNonNull(unitPrice, "Unit price must not be null");
+        if (unitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Unit price must be greater than zero");
         }
-        if (estoqueCheios < 0 || estoqueVazios < 0) {
-            throw new IllegalArgumentException("Saldos de estoque nao podem ser negativos");
+        if (stockFull < 0 || stockEmpty < 0) {
+            throw new IllegalArgumentException("Stock balances cannot be negative");
         }
-        this.estoqueCheios = estoqueCheios;
-        this.estoqueVazios = estoqueVazios;
-        this.ativo = ativo;
-        this.versao = versao;
+        this.stockFull = stockFull;
+        this.stockEmpty = stockEmpty;
+        this.active = active;
+        this.version = version;
     }
 
     public static Builder builder() {
@@ -93,72 +93,72 @@ public class Product {
         return sku;
     }
 
-    public String getNome() {
-        return nome;
+    public String getName() {
+        return name;
     }
 
-    public BigDecimal getCapacidadeLitros() {
-        return capacidadeLitros;
+    public BigDecimal getCapacityLiters() {
+        return capacityLiters;
     }
 
-    public boolean isRetornavel() {
-        return retornavel;
+    public boolean isReturnable() {
+        return returnable;
     }
 
-    public TipoProduto getTipoProduto() {
-        return tipoProduto;
+    public ProductType getProductType() {
+        return productType;
     }
 
-    public BigDecimal getPrecoVenda() {
-        return precoVenda;
+    public BigDecimal getUnitPrice() {
+        return unitPrice;
     }
 
-    public int getEstoqueCheios() {
-        return estoqueCheios;
+    public int getStockFull() {
+        return stockFull;
     }
 
-    public int getEstoqueVazios() {
-        return estoqueVazios;
+    public int getStockEmpty() {
+        return stockEmpty;
     }
 
-    public boolean isAtivo() {
-        return ativo;
+    public boolean isActive() {
+        return active;
     }
 
-    public Long getVersao() {
-        return versao;
+    public Long getVersion() {
+        return version;
     }
 
-    public void setEstoqueCheios(int estoqueCheios) {
-        if (estoqueCheios < 0) {
-            throw new IllegalArgumentException("Saldo de cheios nao pode ser negativo");
+    public void setStockFull(int stockFull) {
+        if (stockFull < 0) {
+            throw new IllegalArgumentException("Stock full cannot be negative");
         }
-        this.estoqueCheios = estoqueCheios;
+        this.stockFull = stockFull;
     }
 
-    public void setEstoqueVazios(int estoqueVazios) {
-        if (estoqueVazios < 0) {
-            throw new IllegalArgumentException("Saldo de vazios nao pode ser negativo");
+    public void setStockEmpty(int stockEmpty) {
+        if (stockEmpty < 0) {
+            throw new IllegalArgumentException("Stock empty cannot be negative");
         }
-        this.estoqueVazios = estoqueVazios;
+        this.stockEmpty = stockEmpty;
     }
 
-    public void setAtivo(boolean ativo) {
-        this.ativo = ativo;
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     public static class Builder {
         private Long id;
         private String sku;
-        private String nome;
-        private BigDecimal capacidadeLitros;
-        private boolean retornavel = true;
-        private TipoProduto tipoProduto;
-        private BigDecimal precoVenda;
-        private int estoqueCheios = 0;
-        private int estoqueVazios = 0;
-        private boolean ativo = true;
-        private Long versao;
+        private String name;
+        private BigDecimal capacityLiters;
+        private boolean returnable = true;
+        private ProductType productType;
+        private BigDecimal unitPrice;
+        private int stockFull = 0;
+        private int stockEmpty = 0;
+        private boolean active = true;
+        private Long version;
 
         public Builder id(Long id) {
             this.id = id;
@@ -170,54 +170,54 @@ public class Product {
             return this;
         }
 
-        public Builder nome(String nome) {
-            this.nome = nome;
+        public Builder name(String name) {
+            this.name = name;
             return this;
         }
 
-        public Builder capacidadeLitros(BigDecimal capacidadeLitros) {
-            this.capacidadeLitros = capacidadeLitros;
+        public Builder capacityLiters(BigDecimal capacityLiters) {
+            this.capacityLiters = capacityLiters;
             return this;
         }
 
-        public Builder retornavel(boolean retornavel) {
-            this.retornavel = retornavel;
+        public Builder returnable(boolean returnable) {
+            this.returnable = returnable;
             return this;
         }
 
-        public Builder tipoProduto(TipoProduto tipoProduto) {
-            this.tipoProduto = tipoProduto;
+        public Builder productType(ProductType productType) {
+            this.productType = productType;
             return this;
         }
 
-        public Builder precoVenda(BigDecimal precoVenda) {
-            this.precoVenda = precoVenda;
+        public Builder unitPrice(BigDecimal unitPrice) {
+            this.unitPrice = unitPrice;
             return this;
         }
 
-        public Builder estoqueCheios(int estoqueCheios) {
-            this.estoqueCheios = estoqueCheios;
+        public Builder stockFull(int stockFull) {
+            this.stockFull = stockFull;
             return this;
         }
 
-        public Builder estoqueVazios(int estoqueVazios) {
-            this.estoqueVazios = estoqueVazios;
+        public Builder stockEmpty(int stockEmpty) {
+            this.stockEmpty = stockEmpty;
             return this;
         }
 
-        public Builder ativo(boolean ativo) {
-            this.ativo = ativo;
+        public Builder active(boolean active) {
+            this.active = active;
             return this;
         }
 
-        public Builder versao(Long versao) {
-            this.versao = versao;
+        public Builder version(Long version) {
+            this.version = version;
             return this;
         }
 
         public Product build() {
-            return new Product(id, sku, nome, capacidadeLitros, retornavel, tipoProduto,
-                    precoVenda, estoqueCheios, estoqueVazios, ativo, versao);
+            return new Product(id, sku, name, capacityLiters, returnable, productType,
+                    unitPrice, stockFull, stockEmpty, active, version);
         }
     }
 }
