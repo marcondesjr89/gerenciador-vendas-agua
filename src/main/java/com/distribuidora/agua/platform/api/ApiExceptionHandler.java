@@ -31,6 +31,16 @@ public class ApiExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ProblemDetail handleResourceNotFound(ResourceNotFoundException ex) {
+        log.warn("Recurso nao encontrado: {}", ex.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problemDetail.setTitle("Recurso Nao Encontrado");
+        problemDetail.setType(URI.create("https://distribuidora.com/erros/recurso-nao-encontrado"));
+        problemDetail.setProperty("timestamp", Instant.now());
+        return problemDetail;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
