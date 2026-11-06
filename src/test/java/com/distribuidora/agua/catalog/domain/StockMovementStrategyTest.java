@@ -51,6 +51,13 @@ class StockMovementStrategyTest {
         }
 
         @Test
+        @DisplayName("Deve zerar estoque com sucesso quando quantidade for exatamente igual ao saldo")
+        void deveZerarEstoqueNoLimiteExato() {
+            strategy.debitStock(product, 10);
+            assertThat(product.getEstoqueCheios()).isZero();
+        }
+
+        @Test
         @DisplayName("Deve estornar/creditar apenas estoque de cheios")
         void deveCreditarCheios() {
             strategy.creditStock(product, 2);
@@ -62,6 +69,15 @@ class StockMovementStrategyTest {
         @DisplayName("Deve lancar InsufficientStockException se saldo de cheios for insuficiente")
         void deveLancarExcecaoQuandoSaldoInsuficiente() {
             assertThatThrownBy(() -> strategy.debitStock(product, 15))
+                    .isInstanceOf(InsufficientStockException.class)
+                    .hasMessageContaining("Saldo insuficiente de unidades cheias");
+        }
+
+        @Test
+        @DisplayName("Deve lancar InsufficientStockException se estoque ja estiver zerado")
+        void deveLancarExcecaoQuandoEstoqueJaZerado() {
+            product.setEstoqueCheios(0);
+            assertThatThrownBy(() -> strategy.debitStock(product, 1))
                     .isInstanceOf(InsufficientStockException.class)
                     .hasMessageContaining("Saldo insuficiente de unidades cheias");
         }
@@ -96,6 +112,15 @@ class StockMovementStrategyTest {
         }
 
         @Test
+        @DisplayName("Deve garantir piso zero de vasilhames no estorno se saldo de vazios for menor que o estornado")
+        void deveGarantirPisoZeroNoEstorno() {
+            product.setEstoqueVazios(1);
+            strategy.creditStock(product, 5);
+            assertThat(product.getEstoqueCheios()).isEqualTo(15);
+            assertThat(product.getEstoqueVazios()).isZero(); // Nao pode ser negativo
+        }
+
+        @Test
         @DisplayName("Deve lancar InsufficientStockException se cheios forem insuficientes")
         void deveLancarExcecaoQuandoCheiosInsuficientes() {
             assertThatThrownBy(() -> strategy.debitStock(product, 20))
@@ -122,6 +147,13 @@ class StockMovementStrategyTest {
             strategy.debitStock(product, 2);
             assertThat(product.getEstoqueCheios()).isEqualTo(10);
             assertThat(product.getEstoqueVazios()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("Deve zerar estoque de vazios no limite exato")
+        void deveZerarEstoqueDeVaziosNoLimiteExato() {
+            strategy.debitStock(product, 5);
+            assertThat(product.getEstoqueVazios()).isZero();
         }
 
         @Test

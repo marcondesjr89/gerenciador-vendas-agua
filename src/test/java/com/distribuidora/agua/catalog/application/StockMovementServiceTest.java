@@ -2,7 +2,6 @@ package com.distribuidora.agua.catalog.application;
 
 import com.distribuidora.agua.catalog.domain.AguaCompletaStockStrategy;
 import com.distribuidora.agua.catalog.domain.DescartavelStockStrategy;
-import com.distribuidora.agua.catalog.domain.InsufficientStockException;
 import com.distribuidora.agua.catalog.domain.Product;
 import com.distribuidora.agua.catalog.domain.RefilStockStrategy;
 import com.distribuidora.agua.catalog.domain.StockMovementStrategy;
@@ -17,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -99,6 +99,16 @@ class StockMovementServiceTest {
     }
 
     @Test
+    @DisplayName("Deve permitir ajuste de estoque para limite inferior zero")
+    void devePermitirAjusteParaZero() {
+        stockMovementService.ajustarEstoque(product, 0, 0);
+
+        assertThat(product.getEstoqueCheios()).isZero();
+        assertThat(product.getEstoqueVazios()).isZero();
+        verify(productRepository).save(product);
+    }
+
+    @Test
     @DisplayName("Deve falhar ao ajustar estoque com valores negativos")
     void deveFalharAjusteEstoqueNegativo() {
         assertThatThrownBy(() -> stockMovementService.ajustarEstoque(product, -5, 10))
@@ -108,5 +118,15 @@ class StockMovementServiceTest {
         assertThatThrownBy(() -> stockMovementService.ajustarEstoque(product, 10, -2))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Os saldos de estoque nao podem ser negativos");
+    }
+
+    @Test
+    @DisplayName("Deve lancar IllegalStateException se nao houver strategy para o TipoProduto")
+    void deveFalharQuandoStrategyNaoEncontrada() {
+        StockMovementService servicoSemStrategies = new StockMovementService(Collections.emptyList(), productRepository);
+
+        assertThatThrownBy(() -> servicoSemStrategies.movimentarBaixa(product, 1))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Nenhuma estrategia de estoque encontrada");
     }
 }

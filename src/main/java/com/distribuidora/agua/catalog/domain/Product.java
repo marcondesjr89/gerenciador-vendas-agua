@@ -63,9 +63,18 @@ public class Product {
         this.sku = Objects.requireNonNull(sku, "SKU nao pode ser nulo");
         this.nome = Objects.requireNonNull(nome, "Nome nao pode ser nulo");
         this.capacidadeLitros = Objects.requireNonNull(capacidadeLitros, "Capacidade em litros nao pode ser nula");
+        if (capacidadeLitros.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Capacidade em litros deve ser maior que zero");
+        }
         this.retornavel = retornavel;
         this.tipoProduto = Objects.requireNonNull(tipoProduto, "Tipo do produto nao pode ser nulo");
         this.precoVenda = Objects.requireNonNull(precoVenda, "Preco de venda nao pode ser nulo");
+        if (precoVenda.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Preco de venda deve ser maior que zero");
+        }
+        if (estoqueCheios < 0 || estoqueVazios < 0) {
+            throw new IllegalArgumentException("Saldos de estoque nao podem ser negativos");
+        }
         this.estoqueCheios = estoqueCheios;
         this.estoqueVazios = estoqueVazios;
         this.ativo = ativo;
@@ -121,10 +130,16 @@ public class Product {
     }
 
     public void setEstoqueCheios(int estoqueCheios) {
+        if (estoqueCheios < 0) {
+            throw new IllegalArgumentException("Saldo de cheios nao pode ser negativo");
+        }
         this.estoqueCheios = estoqueCheios;
     }
 
     public void setEstoqueVazios(int estoqueVazios) {
+        if (estoqueVazios < 0) {
+            throw new IllegalArgumentException("Saldo de vazios nao pode ser negativo");
+        }
         this.estoqueVazios = estoqueVazios;
     }
 

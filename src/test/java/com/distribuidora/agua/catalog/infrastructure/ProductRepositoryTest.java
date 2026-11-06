@@ -6,6 +6,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 @ActiveProfiles("default")
@@ -20,6 +23,9 @@ class ProductRepositoryTest {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private TestEntityManager entityManager;
 
     @Test
     @DisplayName("Deve salvar e recuperar produto por SKU")
@@ -79,5 +85,41 @@ class ProductRepositoryTest {
         List<Product> ativos = productRepository.findByAtivoTrue();
         assertThat(ativos).extracting(Product::getSku).contains("AGUA-500ML");
         assertThat(ativos).extracting(Product::getSku).doesNotContain("GALAO-10L-INATIVO");
+    }
+
+    @Test
+    @DisplayName("Deve detectar conflito de concorrencia otimista com @Version")
+    void deveDetectarConflitoConcorrenciaOtimista() {
+        Product product = Product.builder()
+                .sku("GALAO-20L-LOCK")
+                .nome("Galao 20L Concorrencia")
+                .capacidadeLitros(new BigDecimal("20.00"))
+                .retornavel(true)
+                .tipoProduto(TipoProduto.AGUA_COMPLETA)
+                .precoVenda(new BigDecimal("30.00"))
+                .estoqueCheios(10)
+                .estoqueVazios(5)
+                .ativo(true)
+                .build();
+
+        Product saved = productRepository.saveAndFlush(product);
+        Long id = saved.getId();
+
+        // Carrega primeira instancia e a desanexa da sessao
+        Product instance1 = productRepository.findById(id).orElseThrow();
+        entityManager.detach(instance1);
+
+        // Carrega segunda instancia e realiza atualizacao concorrente
+        Product instance2 = productRepository.findById(id).orElseThrow();
+        instance2.setEstoqueCheios(15);
+        productRepository.saveAndFlush(instance2);
+
+        // Limpa o contexto para forcar merge da instancia 1 desatualizada
+        entityManager.clear();
+
+        // A instancia 1 possui versao desatualizada (versao = 0, enquanto no banco ja e 1)
+        instance1.setEstoqueCheios(20);
+        assertThatThrownBy(() -> productRepository.saveAndFlush(instance1))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 }
