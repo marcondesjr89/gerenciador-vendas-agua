@@ -1,5 +1,6 @@
 package com.distribuidora.agua.platform.api;
 
+import com.distribuidora.agua.catalog.domain.InsufficientStockException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,16 @@ import java.util.Map;
 public class ApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+    @ExceptionHandler(InsufficientStockException.class)
+    public ProblemDetail handleInsufficientStock(InsufficientStockException ex) {
+        log.warn("Tentativa de movimentacao com estoque insuficiente: {}", ex.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        problemDetail.setTitle("Estoque Insuficiente");
+        problemDetail.setType(URI.create("https://distribuidora.com/erros/estoque-insuficiente"));
+        problemDetail.setProperty("timestamp", Instant.now());
+        return problemDetail;
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
