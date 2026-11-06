@@ -4,6 +4,10 @@
 AGENTS.md
 *.scratch.*
 
+# Environment & Local Secrets
+.env
+*.lnk
+
 # Java & Build Tools
 target/
 build/
