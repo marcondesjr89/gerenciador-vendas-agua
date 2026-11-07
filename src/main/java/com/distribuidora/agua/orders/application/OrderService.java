@@ -13,6 +13,8 @@ import com.distribuidora.agua.platform.feature.FeatureFlagKey;
 import com.distribuidora.agua.platform.feature.FeatureFlagService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -166,6 +168,23 @@ public class OrderService {
     public Order findByOrderCode(String orderCode) {
         return orderRepository.findByOrderCode(orderCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido nao encontrado com codigo: " + orderCode));
+    }
+
+    /**
+     * Lists orders with pagination and optional filtering by status and customer phone.
+     */
+    @Transactional(readOnly = true)
+    public Page<Order> findOrders(OrderStatus status, String customerPhone, Pageable pageable) {
+        if (status != null && customerPhone != null && !customerPhone.isBlank()) {
+            return orderRepository.findByStatusAndCustomerPhone(status, customerPhone.trim(), pageable);
+        }
+        if (status != null) {
+            return orderRepository.findByStatus(status, pageable);
+        }
+        if (customerPhone != null && !customerPhone.isBlank()) {
+            return orderRepository.findByCustomerPhone(customerPhone.trim(), pageable);
+        }
+        return orderRepository.findAll(pageable);
     }
 
     private BigDecimal calculateDeliveryFee(Modality modality, BigDecimal subtotal) {
