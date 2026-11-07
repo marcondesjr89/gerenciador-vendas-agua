@@ -55,6 +55,9 @@ class PaymentProcessorServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private com.distribuidora.agua.platform.observability.RedMetricsService redMetricsService;
+
     private PaymentProcessorService paymentProcessorService;
 
     private Order sampleOrder;
@@ -64,7 +67,8 @@ class PaymentProcessorServiceTest {
         paymentProcessorService = new PaymentProcessorService(
                 paymentRepository,
                 orderService,
-                Optional.of(redisTemplate)
+                Optional.of(redisTemplate),
+                redMetricsService
         );
 
         sampleOrder = Order.builder()

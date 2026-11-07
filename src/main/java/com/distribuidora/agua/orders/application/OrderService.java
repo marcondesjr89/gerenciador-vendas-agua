@@ -43,17 +43,20 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final StockMovementService stockMovementService;
     private final FeatureFlagService featureFlagService;
+    private final com.distribuidora.agua.platform.observability.RedMetricsService redMetricsService;
 
     public OrderService(
             OrderRepository orderRepository,
             ProductRepository productRepository,
             StockMovementService stockMovementService,
-            FeatureFlagService featureFlagService
+            FeatureFlagService featureFlagService,
+            com.distribuidora.agua.platform.observability.RedMetricsService redMetricsService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.stockMovementService = stockMovementService;
         this.featureFlagService = featureFlagService;
+        this.redMetricsService = redMetricsService;
     }
 
     /**
@@ -61,60 +64,73 @@ public class OrderService {
      */
     @Transactional
     public Order createOrder(CreateOrderCommand command) {
-        Objects.requireNonNull(command, "CreateOrderCommand cannot be null");
-        if (command.items() == null || command.items().isEmpty()) {
-            throw new IllegalArgumentException("O pedido deve conter pelo menos um item");
-        }
-
-        String orderCode = generateOrderCode();
-
-        Order order = Order.builder()
-                .orderCode(orderCode)
-                .customerName(command.customerName())
-                .customerPhone(command.customerPhone())
-                .modality(command.modality())
-                .paymentMethod(command.paymentMethod())
-                .status(OrderStatus.PENDING)
-                .deliveryFee(BigDecimal.ZERO)
-                .build();
-
-        // Add items and debit stock atomically
-        for (OrderItemCommand itemCmd : command.items()) {
-            Product product = productRepository.findById(itemCmd.productId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Produto nao encontrado com id: " + itemCmd.productId()));
-
-            if (!product.isActive()) {
-                throw new IllegalStateException("Produto inativo nao pode ser vendido: " + product.getSku());
+        long startTime = System.nanoTime();
+        try {
+            Objects.requireNonNull(command, "CreateOrderCommand cannot be null");
+            if (command.items() == null || command.items().isEmpty()) {
+                throw new IllegalArgumentException("O pedido deve conter pelo menos um item");
             }
 
-            stockMovementService.debitStock(product, itemCmd.quantity());
-            order.addItem(product, itemCmd.quantity(), itemCmd.bottlesReturned());
+            String orderCode = generateOrderCode();
+
+            Order order = Order.builder()
+                    .orderCode(orderCode)
+                    .customerName(command.customerName())
+                    .customerPhone(command.customerPhone())
+                    .modality(command.modality())
+                    .paymentMethod(command.paymentMethod())
+                    .status(OrderStatus.PENDING)
+                    .deliveryFee(BigDecimal.ZERO)
+                    .build();
+
+            // Add items and debit stock atomically
+            for (OrderItemCommand itemCmd : command.items()) {
+                Product product = productRepository.findById(itemCmd.productId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Produto nao encontrado com id: " + itemCmd.productId()));
+
+                if (!product.isActive()) {
+                    throw new IllegalStateException("Produto inativo nao pode ser vendido: " + product.getSku());
+                }
+
+                stockMovementService.debitStock(product, itemCmd.quantity());
+                order.addItem(product, itemCmd.quantity(), itemCmd.bottlesReturned());
+            }
+
+            order.recalculateTotals();
+
+            // Calculate delivery fee
+            BigDecimal deliveryFee = calculateDeliveryFee(order.getModality(), order.getSubtotal());
+            Order finalOrder = Order.builder()
+                    .id(order.getId())
+                    .orderCode(order.getOrderCode())
+                    .customerName(order.getCustomerName())
+                    .customerPhone(order.getCustomerPhone())
+                    .modality(order.getModality())
+                    .paymentMethod(order.getPaymentMethod())
+                    .status(order.getStatus())
+                    .deliveryFee(deliveryFee)
+                    .build();
+
+            for (OrderItem item : order.getItems()) {
+                finalOrder.addItem(item.getProduct(), item.getQuantity(), item.isBottlesReturned());
+            }
+            finalOrder.recalculateTotals();
+
+            Order saved = orderRepository.save(finalOrder);
+            log.info("Created order [{}] for customer [{}] with total [{}]",
+                    saved.getOrderCode(), saved.getCustomerName(), saved.getTotalAmount());
+
+            if (redMetricsService != null) {
+                redMetricsService.recordOrderCreated(saved.getStatus().name(), saved.getModality().name());
+                redMetricsService.recordOrderCreationDuration(java.time.Duration.ofNanos(System.nanoTime() - startTime));
+            }
+            return saved;
+        } catch (Exception ex) {
+            if (redMetricsService != null) {
+                redMetricsService.recordOrderError(ex.getClass().getSimpleName());
+            }
+            throw ex;
         }
-
-        order.recalculateTotals();
-
-        // Calculate delivery fee
-        BigDecimal deliveryFee = calculateDeliveryFee(order.getModality(), order.getSubtotal());
-        Order finalOrder = Order.builder()
-                .id(order.getId())
-                .orderCode(order.getOrderCode())
-                .customerName(order.getCustomerName())
-                .customerPhone(order.getCustomerPhone())
-                .modality(order.getModality())
-                .paymentMethod(order.getPaymentMethod())
-                .status(order.getStatus())
-                .deliveryFee(deliveryFee)
-                .build();
-
-        for (OrderItem item : order.getItems()) {
-            finalOrder.addItem(item.getProduct(), item.getQuantity(), item.isBottlesReturned());
-        }
-        finalOrder.recalculateTotals();
-
-        Order saved = orderRepository.save(finalOrder);
-        log.info("Created order [{}] for customer [{}] with total [{}]",
-                saved.getOrderCode(), saved.getCustomerName(), saved.getTotalAmount());
-        return saved;
     }
 
     /**

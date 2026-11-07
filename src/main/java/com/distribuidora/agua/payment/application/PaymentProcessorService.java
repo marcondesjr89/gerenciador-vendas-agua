@@ -33,15 +33,18 @@ public class PaymentProcessorService {
     private final PaymentRepository paymentRepository;
     private final OrderService orderService;
     private final Optional<StringRedisTemplate> redisTemplate;
+    private final com.distribuidora.agua.platform.observability.RedMetricsService redMetricsService;
 
     public PaymentProcessorService(
             PaymentRepository paymentRepository,
             OrderService orderService,
-            Optional<StringRedisTemplate> redisTemplate
+            Optional<StringRedisTemplate> redisTemplate,
+            com.distribuidora.agua.platform.observability.RedMetricsService redMetricsService
     ) {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.redisTemplate = redisTemplate;
+        this.redMetricsService = redMetricsService;
     }
 
     /**
@@ -59,70 +62,83 @@ public class PaymentProcessorService {
      */
     @Transactional
     public Payment processPayment(String rawIdempotencyKey, ProcessPaymentCommand command) {
-        Objects.requireNonNull(rawIdempotencyKey, "Idempotency-Key header cannot be null");
-        Objects.requireNonNull(command, "ProcessPaymentCommand cannot be null");
-
-        String idempotencyKey = rawIdempotencyKey.trim();
-
-        // 1. Database fast-path replay check
-        Optional<Payment> existing = paymentRepository.findByIdempotencyKey(idempotencyKey);
-        if (existing.isPresent()) {
-            log.info("Idempotent payment replay detected for key [{}]. Returning existing payment [{}]",
-                    idempotencyKey, existing.get().getId());
-            return existing.get();
-        }
-
-        // 2. Redis distributed concurrency lock
-        acquireDistributedLock(idempotencyKey);
-
-        // 3. Re-check DB in case another thread just completed during lock acquisition
-        Optional<Payment> rechecked = paymentRepository.findByIdempotencyKey(idempotencyKey);
-        if (rechecked.isPresent()) {
-            return rechecked.get();
-        }
-
-        // 4. Validate order and amount
-        Order order = orderService.findById(command.orderId());
-        if (order.getStatus() == OrderStatus.CANCELLED) {
-            throw new IllegalStateException("Nao e possivel processar pagamento para pedido cancelado: " + order.getOrderCode());
-        }
-
-        if (command.paidAmount().compareTo(order.getTotalAmount()) < 0) {
-            throw new IllegalArgumentException(String.format(
-                    "Valor pago insuficiente: R$ %s (total do pedido: R$ %s)",
-                    command.paidAmount(), order.getTotalAmount()
-            ));
-        }
-
-        // 5. Advance order status if pending
-        if (order.getStatus() == OrderStatus.PENDING) {
-            orderService.updateStatus(order.getId(), OrderStatus.CONFIRMED);
-        }
-
-        // 6. Persist payment
-        Payment payment = new Payment(
-                order,
-                idempotencyKey,
-                command.paymentMethod(),
-                command.paidAmount(),
-                PaymentStatus.PAID
-        );
-
-        Payment savedPayment;
+        long startTime = System.nanoTime();
         try {
-            savedPayment = paymentRepository.save(payment);
-            log.info("Successfully processed payment [{}] for order [{}] with idempotency key [{}]",
-                    savedPayment.getId(), order.getOrderCode(), idempotencyKey);
-        } catch (DataIntegrityViolationException ex) {
-            log.warn("Database unique constraint caught concurrent payment duplicate for key [{}]", idempotencyKey);
-            return paymentRepository.findByIdempotencyKey(idempotencyKey)
-                    .orElseThrow(() -> ex);
+            Objects.requireNonNull(rawIdempotencyKey, "Idempotency-Key header cannot be null");
+            Objects.requireNonNull(command, "ProcessPaymentCommand cannot be null");
+
+            String idempotencyKey = rawIdempotencyKey.trim();
+
+            // 1. Database fast-path replay check
+            Optional<Payment> existing = paymentRepository.findByIdempotencyKey(idempotencyKey);
+            if (existing.isPresent()) {
+                log.info("Idempotent payment replay detected for key [{}]. Returning existing payment [{}]",
+                        idempotencyKey, existing.get().getId());
+                return existing.get();
+            }
+
+            // 2. Redis distributed concurrency lock
+            acquireDistributedLock(idempotencyKey);
+
+            // 3. Re-check DB in case another thread just completed during lock acquisition
+            Optional<Payment> rechecked = paymentRepository.findByIdempotencyKey(idempotencyKey);
+            if (rechecked.isPresent()) {
+                return rechecked.get();
+            }
+
+            // 4. Validate order and amount
+            Order order = orderService.findById(command.orderId());
+            if (order.getStatus() == OrderStatus.CANCELLED) {
+                throw new IllegalStateException("Nao e possivel processar pagamento para pedido cancelado: " + order.getOrderCode());
+            }
+
+            if (command.paidAmount().compareTo(order.getTotalAmount()) < 0) {
+                throw new IllegalArgumentException(String.format(
+                        "Valor pago insuficiente: R$ %s (total do pedido: R$ %s)",
+                        command.paidAmount(), order.getTotalAmount()
+                ));
+            }
+
+            // 5. Advance order status if pending
+            if (order.getStatus() == OrderStatus.PENDING) {
+                orderService.updateStatus(order.getId(), OrderStatus.CONFIRMED);
+            }
+
+            // 6. Persist payment
+            Payment payment = new Payment(
+                    order,
+                    idempotencyKey,
+                    command.paymentMethod(),
+                    command.paidAmount(),
+                    PaymentStatus.PAID
+            );
+
+            Payment savedPayment;
+            try {
+                savedPayment = paymentRepository.save(payment);
+                log.info("Successfully processed payment [{}] for order [{}] with idempotency key [{}]",
+                        savedPayment.getId(), order.getOrderCode(), idempotencyKey);
+            } catch (DataIntegrityViolationException ex) {
+                log.warn("Database unique constraint caught concurrent payment duplicate for key [{}]", idempotencyKey);
+                return paymentRepository.findByIdempotencyKey(idempotencyKey)
+                        .orElseThrow(() -> ex);
+            }
+
+            // 7. Store idempotency confirmation in Redis
+            cacheIdempotencyCompletion(idempotencyKey, savedPayment.getId());
+
+            if (redMetricsService != null) {
+                redMetricsService.recordPaymentProcessed(savedPayment.getStatus().name(), command.paymentMethod().name());
+                redMetricsService.recordPaymentDuration(java.time.Duration.ofNanos(System.nanoTime() - startTime));
+            }
+
+            return savedPayment;
+        } catch (Exception ex) {
+            if (redMetricsService != null && command != null && command.paymentMethod() != null) {
+                redMetricsService.recordPaymentProcessed("FAILED", command.paymentMethod().name());
+            }
+            throw ex;
         }
-
-        // 7. Store idempotency confirmation in Redis
-        cacheIdempotencyCompletion(idempotencyKey, savedPayment.getId());
-
-        return savedPayment;
     }
 
     /**

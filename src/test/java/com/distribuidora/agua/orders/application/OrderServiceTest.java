@@ -48,6 +48,9 @@ class OrderServiceTest {
     @Mock
     private FeatureFlagService featureFlagService;
 
+    @Mock
+    private com.distribuidora.agua.platform.observability.RedMetricsService redMetricsService;
+
     @InjectMocks
     private OrderService orderService;
 
