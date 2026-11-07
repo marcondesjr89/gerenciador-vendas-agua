@@ -96,6 +96,16 @@ public class ApiExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    public ProblemDetail handleMissingRequestHeader(org.springframework.web.bind.MissingRequestHeaderException ex) {
+        log.warn("Cabecalho obrigatorio ausente: {}", ex.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problemDetail.setTitle("Cabecalho Obrigatorio Ausente");
+        problemDetail.setType(URI.create("https://distribuidora.com/erros/cabecalho-ausente"));
+        problemDetail.setProperty("timestamp", Instant.now());
+        return problemDetail;
+    }
+
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGenericException(Exception ex) {
         log.error("Erro interno nao esperado no servidor: ", ex);
