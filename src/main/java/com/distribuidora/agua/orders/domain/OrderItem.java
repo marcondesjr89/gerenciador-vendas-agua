@@ -7,6 +7,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -18,7 +19,12 @@ import java.util.Objects;
  * Line item belonging to an Order.
  */
 @Entity
-@Table(name = "order_items")
+@Table(
+        name = "order_items",
+        indexes = {
+                @Index(name = "idx_order_items_order_id", columnList = "order_id")
+        }
+)
 public class OrderItem {
 
     @Id

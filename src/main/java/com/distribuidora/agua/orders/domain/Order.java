@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
@@ -23,7 +24,13 @@ import java.util.Objects;
  * Root Aggregate representing a mineral water sales order.
  */
 @Entity
-@Table(name = "orders")
+@Table(
+        name = "orders",
+        indexes = {
+                @Index(name = "idx_orders_status_created_at", columnList = "status, created_at DESC"),
+                @Index(name = "idx_orders_customer_phone", columnList = "customer_phone")
+        }
+)
 public class Order {
 
     @Id
