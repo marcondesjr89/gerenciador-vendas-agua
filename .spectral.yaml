@@ -1,0 +1,7 @@
+extends: spectral:oas
+
+rules:
+  operation-description: warn
+  info-contact: warn
+  info-description: error
+  no-eval-in-markdown: warn

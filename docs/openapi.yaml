@@ -1,0 +1,916 @@
+openapi: 3.1.0
+info:
+  title: Gerenciador de Vendas de Água Mineral - API
+  version: 2.0.0
+  description: >
+    API RESTful do Monólito Modular de Gerenciamento de Vendas, Estoque Dual (Galões Cheios e Vasilhames Vazios),
+    Máquina de Estados de Pedidos, Liquidação Idempotente de Pagamentos com Redis Lock e Observabilidade com Métricas RED.
+  contact:
+    name: Equipe de Engenharia Distribuidora de Água
+    email: engenharia@distribuidora-agua.com.br
+    url: https://github.com/marcondesjr89/gerenciador-vendas-agua
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Ambiente Local de Desenvolvimento
+  - url: https://api.distribuidora-agua.com.br
+    description: Ambiente de Produção (PaaS Render/Railway)
+
+tags:
+  - name: Catalog
+    description: Catálogo de Produtos, Estratégias de Estoque Dual e Ajustes de Saldo
+  - name: Orders
+    description: Criação de Pedidos, Consulta Paginada (100k), Máquina de Estados, Frete Dinâmico e Estorno
+  - name: Payments
+    description: Processamento de Cobrança com Dupla Camada de Idempotência (Redis Lock + PostgreSQL)
+  - name: Platform
+    description: Governança em Tempo de Execução, Feature Flags e Ganchos Fiscais
+  - name: Observability
+    description: Endpoints do Spring Boot Actuator, Healthcheck e Métricas RED Prometheus
+
+paths:
+  /api/v1/catalog/products:
+    get:
+      tags:
+        - Catalog
+      summary: Listar produtos ativos do catálogo
+      description: Retorna a lista de produtos ativos com saldo de estoque atualizado. Utiliza cache distribuído Redis com fallback resiliente.
+      operationId: listCatalogProducts
+      responses:
+        '200':
+          description: Lista de produtos retornada com sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductResponse'
+    post:
+      tags:
+        - Catalog
+      summary: Cadastrar novo produto
+      description: Cadastra um novo produto no catálogo e inicializa os saldos de estoque (cheio e vasilhames).
+      operationId: createCatalogProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '201':
+          description: Produto criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          description: Dados de entrada inválidos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: Conflito de SKU duplicado
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /api/v1/catalog/products/{id}/stock-adjustments:
+    post:
+      tags:
+        - Catalog
+      summary: Ajustar saldo de estoque manualmente
+      description: Permite entrada ou baixa manual de saldo para galões cheios ou vasilhames vazios com auditoria.
+      operationId: adjustProductStock
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador numérico do produto
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockAdjustmentRequest'
+      responses:
+        '200':
+          description: Saldo de estoque ajustado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductResponse'
+        '400':
+          description: Dados de ajuste inválidos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Produto não encontrado
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '422':
+          description: Saldo de estoque insuficiente para o ajuste negativo
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /api/v1/orders:
+    get:
+      tags:
+        - Orders
+      summary: Consultar pedidos com paginação e filtros
+      description: Realiza busca paginada e otimizada por índice composto B-Tree sobre a base de pedidos sintéticos (100k).
+      operationId: findOrders
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Número da página (iniciando em 0)
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          description: Quantidade de itens por página
+          schema:
+            type: integer
+            default: 20
+        - name: sort
+          in: query
+          required: false
+          description: "Critério de ordenação (ex: created_at,desc)"
+          schema:
+            type: string
+            default: createdAt,desc
+        - name: status
+          in: query
+          required: false
+          description: Filtrar por status do pedido
+          schema:
+            type: string
+            enum: [PENDING, CONFIRMED, IN_TRANSIT, DELIVERED, CANCELLED]
+        - name: customerPhone
+          in: query
+          required: false
+          description: Filtrar por telefone do cliente
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Página de pedidos retornada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageOrderResponse'
+    post:
+      tags:
+        - Orders
+      summary: Criar novo pedido de venda
+      description: Cria um pedido aplicando baixa atômica de estoque dual, cálculo de frete dinâmico e gancho para cupom fiscal.
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Pedido criado com sucesso
+          headers:
+            Location:
+              description: URI do recurso criado
+              schema:
+                type: string
+            X-Trace-Id:
+              description: Identificador distribuído do trace OpenTelemetry
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          description: Dados do pedido inválidos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Produto especificado não encontrado
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '422':
+          description: Estoque insuficiente de água ou vasilhames vazios
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /api/v1/orders/{id}:
+    get:
+      tags:
+        - Orders
+      summary: Detalhes do pedido por ID
+      description: Retorna os dados completos do pedido, itens e prévia de comprovante fiscal caso gerado.
+      operationId: getOrderById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador numérico do pedido
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Pedido localizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '404':
+          description: Pedido não encontrado
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /api/v1/orders/{id}/status:
+    patch:
+      tags:
+        - Orders
+      summary: Transição de status do pedido
+      description: Avança o estado do pedido na máquina de estados ou executa cancelamento com estorno atômico de estoque.
+      operationId: updateOrderStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador numérico do pedido
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderStatusRequest'
+      responses:
+        '200':
+          description: Status atualizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          description: Requisição inválida
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Pedido não encontrado
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '422':
+          description: Transição de status proibida pela máquina de estados
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /api/v1/payments:
+    post:
+      tags:
+        - Payments
+      summary: Processar pagamento de forma idempotente
+      description: Liquida o valor do pedido com verificação de idempotência em dupla camada (Redis Lock + PostgreSQL unique constraint).
+      operationId: processPayment
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Chave única de idempotência fornecida pelo cliente para prevenir cobranças duplicadas
+          schema:
+            type: string
+            example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessPaymentRequest'
+      responses:
+        '201':
+          description: Pagamento processado com sucesso pela primeira vez
+          headers:
+            Location:
+              description: URI do pagamento criado
+              schema:
+                type: string
+            X-Trace-Id:
+              description: Identificador distribuído do trace OpenTelemetry
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '200':
+          description: Replay idempotente detectado; retorna o pagamento previamente liquidado sem reprocessar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Cabeçalho Idempotency-Key ausente ou payload inválido
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Pedido associado não encontrado
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '422':
+          description: Falha de negócio (pedido cancelado ou valor pago insuficiente)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /api/v1/platform/features:
+    get:
+      tags:
+        - Platform
+      summary: Listar todas as Feature Flags
+      description: Retorna a lista de flags de funcionalidade do sistema e seus respectivos estados atuais em memória.
+      operationId: listFeatureFlags
+      responses:
+        '200':
+          description: Lista de Feature Flags retornada com sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeatureFlagResponse'
+
+  /api/v1/platform/features/{key}:
+    get:
+      tags:
+        - Platform
+      summary: Consultar estado de uma Feature Flag
+      description: Retorna o estado e metadados de uma Feature Flag específica por chave canônica ou alias.
+      operationId: getFeatureFlag
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: "Chave canônica ou alias da flag (ex: feature.fiscal-receipt-preview)"
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Feature Flag localizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlagResponse'
+        '404':
+          description: Feature Flag não encontrada
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    patch:
+      tags:
+        - Platform
+      summary: Alternar estado de uma Feature Flag em tempo de execução
+      description: Altera o valor booleano da flag dinamicamente em runtime sem necessidade de reinício da JVM.
+      operationId: updateFeatureFlag
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: Chave canônica ou alias da flag
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFeatureFlagRequest'
+      responses:
+        '200':
+          description: Estado da Feature Flag atualizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlagResponse'
+        '400':
+          description: Dados de entrada inválidos
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: Feature Flag não encontrada
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /actuator/health:
+    get:
+      tags:
+        - Observability
+      summary: Verificação de saúde da aplicação
+      description: Endpoint de liveness e readiness probe utilizado por orquestradores (Docker, Kubernetes, Render).
+      operationId: getHealthStatus
+      responses:
+        '200':
+          description: Aplicação operacional e saudável
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Um ou mais componentes de infraestrutura estão inoperantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /actuator/prometheus:
+    get:
+      tags:
+        - Observability
+      summary: Raspagem de métricas RED no formato Prometheus
+      description: Endpoint aberto para coleta periódica de métricas de tráfego, erros HTTP, latência e contadores de negócio.
+      operationId: getPrometheusMetrics
+      responses:
+        '200':
+          description: Métricas no padrão OpenMetrics / Prometheus exportadas com sucesso
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    ProductRequest:
+      type: object
+      required:
+        - sku
+        - name
+        - productType
+        - price
+      description: Dados para cadastro de um produto no catálogo
+      properties:
+        sku:
+          type: string
+          example: "GL-20L-AGUA"
+          description: Código identificador SKU do produto
+        name:
+          type: string
+          example: "Galão de Água Mineral 20L Completo"
+          description: Nome de exibição do produto
+        description:
+          type: string
+          example: "Galão de 20 litros retornável com água mineral natural"
+          description: Descrição detalhada do produto
+        productType:
+          type: string
+          enum: [FULL_WATER, REFILL, EMPTY_BOTTLE, DISPOSABLE]
+          example: "FULL_WATER"
+          description: Tipo de produto com regra de estoque associada
+        price:
+          type: number
+          format: double
+          example: 22.00
+          description: Preço unitário de venda em reais
+        fullStockQuantity:
+          type: integer
+          example: 100
+          description: Saldo inicial de galões cheios
+        emptyBottlesQuantity:
+          type: integer
+          example: 50
+          description: Saldo inicial de vasilhames vazios
+        active:
+          type: boolean
+          default: true
+          description: Flag de ativação no catálogo
+
+    ProductResponse:
+      type: object
+      description: Dados de visualização de um produto do catálogo
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        sku:
+          type: string
+          example: "GL-20L-AGUA"
+        name:
+          type: string
+          example: "Galão de Água Mineral 20L Completo"
+        description:
+          type: string
+          example: "Galão de 20 litros retornável com água mineral natural"
+        productType:
+          type: string
+          example: "FULL_WATER"
+        price:
+          type: number
+          format: double
+          example: 22.00
+        fullStockQuantity:
+          type: integer
+          example: 98
+        emptyBottlesQuantity:
+          type: integer
+          example: 52
+        active:
+          type: boolean
+          example: true
+        version:
+          type: integer
+          format: int64
+          example: 2
+
+    StockAdjustmentRequest:
+      type: object
+      required:
+        - stockType
+        - quantity
+      description: Dados para ajuste manual de estoque
+      properties:
+        stockType:
+          type: string
+          enum: [FULL, EMPTY]
+          example: "FULL"
+          description: Tipo de estoque a ajustar (galões cheios ou vasilhames vazios)
+        quantity:
+          type: integer
+          example: 10
+          description: Quantidade a ajustar (positivo para entrada, negativo para baixa)
+        reason:
+          type: string
+          example: "Recebimento de lote de reposição do fornecedor"
+          description: Motivo do ajuste para rastreabilidade
+
+    CreateOrderRequest:
+      type: object
+      required:
+        - customerName
+        - customerPhone
+        - modality
+        - paymentMethod
+        - items
+      description: Dados para abertura de novo pedido de venda
+      properties:
+        customerName:
+          type: string
+          example: "Carlos Eduardo"
+          description: Nome do cliente
+        customerPhone:
+          type: string
+          example: "11988887777"
+          description: Telefone de contato
+        modality:
+          type: string
+          enum: [PICKUP, DELIVERY]
+          example: "DELIVERY"
+          description: Modalidade de atendimento (Retirada no balcão ou Entrega em domicílio)
+        paymentMethod:
+          type: string
+          enum: [CASH, PIX, CREDIT_CARD, DEBIT_CARD]
+          example: "PIX"
+          description: Forma de pagamento pretendida
+        deliveryAddress:
+          type: string
+          example: "Rua das Flores, 123 - Apto 42"
+          description: Endereço de entrega (obrigatório se modality for DELIVERY)
+        items:
+          type: array
+          description: Lista de itens do pedido
+          items:
+            $ref: '#/components/schemas/CreateOrderItemRequest'
+
+    CreateOrderItemRequest:
+      type: object
+      required:
+        - productId
+        - quantity
+      description: Item individual do pedido
+      properties:
+        productId:
+          type: integer
+          format: int64
+          example: 1
+          description: ID do produto
+        quantity:
+          type: integer
+          example: 2
+          description: Quantidade de unidades
+        bottlesReturned:
+          type: boolean
+          default: false
+          example: true
+          description: Informa se o cliente entregou vasilhame vazio na troca
+
+    OrderResponse:
+      type: object
+      description: Dados completos do pedido
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 101
+        orderCode:
+          type: string
+          example: "ORD-20261107-123456"
+        customerName:
+          type: string
+          example: "Carlos Eduardo"
+        customerPhone:
+          type: string
+          example: "11988887777"
+        modality:
+          type: string
+          example: "DELIVERY"
+        paymentMethod:
+          type: string
+          example: "PIX"
+        status:
+          type: string
+          example: "CONFIRMED"
+        subtotal:
+          type: number
+          format: double
+          example: 44.00
+        deliveryFee:
+          type: number
+          format: double
+          example: 5.00
+        totalAmount:
+          type: number
+          format: double
+          example: 49.00
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-11-07T20:10:00Z"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItemResponse'
+        fiscalReceipt:
+          $ref: '#/components/schemas/FiscalReceiptResponse'
+
+    OrderItemResponse:
+      type: object
+      description: Detalhes do item do pedido
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 201
+        productId:
+          type: integer
+          format: int64
+          example: 1
+        productName:
+          type: string
+          example: "Galão de Água Mineral 20L Completo"
+        sku:
+          type: string
+          example: "GL-20L-AGUA"
+        quantity:
+          type: integer
+          example: 2
+        unitPrice:
+          type: number
+          format: double
+          example: 22.00
+        totalPrice:
+          type: number
+          format: double
+          example: 44.00
+        bottlesReturned:
+          type: boolean
+          example: true
+
+    FiscalReceiptResponse:
+      type: object
+      description: Prévia do comprovante fiscal estruturado
+      properties:
+        receiptNumber:
+          type: string
+          example: "REC-1794091983188"
+        authenticationKey:
+          type: string
+          example: "NFCe-MOCK-20261107-0001"
+        issuedAt:
+          type: string
+          format: date-time
+          example: "2026-11-07T20:10:05Z"
+        totalAmount:
+          type: number
+          format: double
+          example: 49.00
+        taxAmount:
+          type: number
+          format: double
+          example: 8.82
+        printerLayout:
+          type: string
+          description: Layout monoespaçado formatado para impressora térmica ESC/POS
+          example: "========================================\nDISTRIBUIDORA DE AGUA MINERAL\n========================================"
+
+    PageOrderResponse:
+      type: object
+      description: Estrutura padrão de paginação do Spring Data
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderResponse'
+        page:
+          type: object
+          properties:
+            size:
+              type: integer
+              example: 20
+            number:
+              type: integer
+              example: 0
+            totalElements:
+              type: integer
+              example: 100000
+            totalPages:
+              type: integer
+              example: 5000
+
+    UpdateOrderStatusRequest:
+      type: object
+      required:
+        - status
+      description: Solicitação de alteração de estado do pedido
+      properties:
+        status:
+          type: string
+          enum: [CONFIRMED, IN_TRANSIT, DELIVERED, CANCELLED]
+          example: "IN_TRANSIT"
+          description: Novo status desejado
+        cancellationReason:
+          type: string
+          example: "Cliente desistiu da compra"
+          description: Obrigatório caso o status seja CANCELLED
+
+    ProcessPaymentRequest:
+      type: object
+      required:
+        - orderId
+        - paidAmount
+        - paymentMethod
+      description: Dados para liquidação do pagamento do pedido
+      properties:
+        orderId:
+          type: integer
+          format: int64
+          example: 101
+          description: ID do pedido a ser pago
+        paidAmount:
+          type: number
+          format: double
+          example: 49.00
+          description: Valor pago pelo cliente
+        paymentMethod:
+          type: string
+          enum: [CASH, PIX, CREDIT_CARD, DEBIT_CARD]
+          example: "PIX"
+          description: Método de pagamento utilizado
+
+    PaymentResponse:
+      type: object
+      description: Comprovante de processamento de pagamento
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 501
+        orderId:
+          type: integer
+          format: int64
+          example: 101
+        orderCode:
+          type: string
+          example: "ORD-20261107-123456"
+        idempotencyKey:
+          type: string
+          example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+        paymentMethod:
+          type: string
+          example: "PIX"
+        amount:
+          type: number
+          format: double
+          example: 49.00
+        status:
+          type: string
+          example: "PAID"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-11-07T20:10:10Z"
+
+    FeatureFlagResponse:
+      type: object
+      description: Detalhes de uma Feature Flag gerenciada em tempo de execução
+      properties:
+        key:
+          type: string
+          example: "feature.fiscal-receipt-preview"
+        alias:
+          type: string
+          example: "fiscal-receipt-preview"
+        description:
+          type: string
+          example: "Gera previa estruturada de comprovante fiscal no retorno de criacao de pedidos"
+        enabled:
+          type: boolean
+          example: true
+
+    UpdateFeatureFlagRequest:
+      type: object
+      required:
+        - enabled
+      description: Solicitação de alteração do estado de uma Feature Flag
+      properties:
+        enabled:
+          type: boolean
+          example: false
+          description: Novo estado ativo/inativo da flag
+
+    ProblemDetail:
+      type: object
+      description: Estrutura padrão de erro RFC 7807 (Problem Details for HTTP APIs)
+      properties:
+        type:
+          type: string
+          format: uri
+          example: "https://distribuidora.com/erros/recurso-nao-encontrado"
+        title:
+          type: string
+          example: "Recurso Nao Encontrado"
+        status:
+          type: integer
+          example: 404
+        detail:
+          type: string
+          example: "Produto nao encontrado com id: 999"
+        instance:
+          type: string
+          example: "/api/v1/catalog/products/999"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-11-07T20:10:15Z"
+
+    HealthResponse:
+      type: object
+      description: Resposta do Actuator Healthcheck
+      properties:
+        status:
+          type: string
+          example: "UP"
+        components:
+          type: object
+          description: Status individual dos componentes (db, diskSpace, etc.)
