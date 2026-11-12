@@ -23,7 +23,7 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("Gerenciador de Vendas de Água Mineral - API")
                         .version("2.0.0")
-                        .description("API RESTful do Monólito Modular de Gerenciamento de Vendas, Estoque Dual, Pedidos e Pagamentos Idempotentes.")
+                        .description("API RESTful do Monólito Modular de Gerenciamento de Vendas, Estoque Dual, Pedidos e Pagamentos Idempotentes (Produção OCI / CI-CD Ativo).")
                         .contact(new Contact()
                                 .name("Equipe de Engenharia Distribuidora de Água")
                                 .email("engenharia@distribuidora-agua.com.br")
