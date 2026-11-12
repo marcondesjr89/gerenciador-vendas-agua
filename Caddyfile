@@ -1,0 +1,42 @@
+# ===================================================================
+# Caddyfile - Configuracao do Proxy Reverso HTTPS Automatico (Caddy)
+# Producao: Gerenciador de Vendas de Agua Mineral
+# ===================================================================
+# A variavel DOMAIN pode ser um dominio proprio ou wildcard IP como:
+# 129.146.xx.xx.sslip.io (gera TLS Let's Encrypt valido automaticamente)
+# ===================================================================
+
+{$DOMAIN:localhost} {
+    # Compressao gzip e zstd para respostas HTTP otimizadas
+    encode gzip zstd
+
+    # Headers padronizados de seguranca HTTP
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Proxy reverso para o container da API Spring Boot
+    reverse_proxy app:8080 {
+        # Timeout e politicas de conexao resiliente
+        transport http {
+            response_header_timeout 60s
+            dial_timeout 10s
+        }
+
+        # Preservacao de headers originais do cliente
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Logs de acesso estruturados
+    log {
+        output stdout
+        format json
+    }
+}

@@ -1,0 +1,100 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: agua_postgres_prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-vendas_agua}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres_secure_prod}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vendas_agua}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - agua_internal_network
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: agua_redis_prod
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data_prod:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - agua_internal_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agua_api_prod
+    restart: always
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-vendas_agua}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres_secure_prod}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SERVER_PORT: 8080
+      FEATURE_FISCAL_RECEIPT_PREVIEW: ${FEATURE_FISCAL_RECEIPT_PREVIEW:-true}
+      FEATURE_FREE_DELIVERY_PROMO: ${FEATURE_FREE_DELIVERY_PROMO:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - agua_internal_network
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: agua_caddy_prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data_prod:/data
+      - caddy_config_prod:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - agua_internal_network
+
+volumes:
+  postgres_data_prod:
+    driver: local
+  redis_data_prod:
+    driver: local
+  caddy_data_prod:
+    driver: local
+  caddy_config_prod:
+    driver: local
+
+networks:
+  agua_internal_network:
+    driver: bridge
