@@ -20,8 +20,8 @@ jobs:
       - name: Deploy on Remote Host via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.OCI_HOST || '129.213.203.42' }}
-          username: ${{ secrets.OCI_USERNAME || 'ubuntu' }}
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USERNAME }}
           key: ${{ secrets.OCI_SSH_KEY }}
           port: 22
           script_stop: true
@@ -31,17 +31,10 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            echo ">>> [2/3] Garantindo arquivo .env de producao..."
+            echo ">>> [2/3] Verificando integridade das variaveis de ambiente..."
             if [ ! -f .env ]; then
-              cat <<EOF > .env
-            SPRING_PROFILES_ACTIVE=prod
-            DOMAIN=129.213.203.42.sslip.io
-            DB_NAME=vendas_agua
-            DB_USER=postgres
-            DB_PASS=agua_prod_secret_2026!
-            FEATURE_FISCAL_RECEIPT_PREVIEW=true
-            FEATURE_FREE_DELIVERY_PROMO=false
-            EOF
+              echo "ERRO CRITICO: Arquivo .env de producao nao encontrado na VM!"
+              exit 1
             fi
 
             echo ">>> [3/3] Reconstruindo e reiniciando containers em producao..."

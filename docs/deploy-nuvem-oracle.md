@@ -70,7 +70,7 @@ SPRING_PROFILES_ACTIVE=prod
 DOMAIN=${IP_VM}.sslip.io
 DB_NAME=vendas_agua
 DB_USER=postgres
-DB_PASS=agua_prod_secret_2026!
+DB_PASS=\$(openssl rand -base64 24)
 FEATURE_FISCAL_RECEIPT_PREVIEW=true
 FEATURE_FREE_DELIVERY_PROMO=false
 EOF

@@ -4,9 +4,9 @@ services:
     container_name: agua_postgres_prod
     restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-vendas_agua}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASS:-postgres_secure_prod}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
     healthcheck:
@@ -44,9 +44,9 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-vendas_agua}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASS: ${DB_PASS:-postgres_secure_prod}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SERVER_PORT: 8080
