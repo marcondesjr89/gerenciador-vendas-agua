@@ -14,10 +14,10 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
+  - url: https://129.213.203.42.sslip.io
+    description: Ambiente de Produção em Nuvem Pública (Oracle Cloud OCI + Caddy Auto-TLS HTTPS)
   - url: http://localhost:8080
-    description: Ambiente Local de Desenvolvimento
-  - url: https://api.distribuidora-agua.com.br
-    description: Ambiente de Produção (PaaS Render/Railway)
+    description: Ambiente Local de Desenvolvimento (Docker Compose)
 
 tags:
   - name: Catalog

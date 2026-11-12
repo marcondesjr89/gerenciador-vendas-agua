@@ -6,8 +6,23 @@
 [![Redis](https://img.shields.io/badge/Redis-7.4-red.svg?style=flat-square&logo=redis)](https://redis.io/)
 [![Docker](https://img.shields.io/badge/Docker%20Compose-Ready-blue.svg?style=flat-square&logo=docker)](https://www.docker.com/)
 [![CI Build](https://img.shields.io/badge/CI-GitHub%20Actions-blueviolet.svg?style=flat-square&logo=githubactions)](.github/workflows/ci.yml)
+[![Produção](https://img.shields.io/badge/Produção-Online%20(HTTPS)-success?style=flat-square&logo=oracle)](https://129.213.203.42.sslip.io/swagger-ui.html)
 
 Plataforma de alta performance para controle de vendas, distribuição de água mineral, gestão de pedidos (balcão e entrega) e controle de estoque dual de vasilhames retornáveis (cheios vs. vazios), construída segundo os padrões do **Projeto Final Full Cycle (Nível A — Avançado)**.
+
+---
+
+## 🌐 Acesso Público em Produção (Oracle Cloud + HTTPS)
+
+A aplicação está hospedada e em execução contínua em infraestrutura de nuvem pública (**Oracle Cloud Infrastructure**) com proxy reverso **Caddy** e certificado TLS/SSL automático (Let's Encrypt):
+
+| Serviço / Endpoint | URL Pública Oficial | Descrição |
+| :--- | :--- | :--- |
+| **Documentação Interativa (Swagger UI)** | [https://129.213.203.42.sslip.io/swagger-ui.html](https://129.213.203.42.sslip.io/swagger-ui.html) | OpenAPI 3.1 com teste dinâmico de todos os endpoints |
+| **Catálogo de Produtos** | [https://129.213.203.42.sslip.io/api/v1/catalog/products](https://129.213.203.42.sslip.io/api/v1/catalog/products) | Produtos, litragens e saldo de estoque dual com cache Redis |
+| **Consulta Paginada (Base 100k)** | [https://129.213.203.42.sslip.io/api/v1/orders?page=0&size=10](https://129.213.203.42.sslip.io/api/v1/orders?page=0&size=10) | Consulta otimizada por índice composto sobre 100.000 pedidos |
+| **Métricas RED Prometheus** | [https://129.213.203.42.sslip.io/actuator/prometheus](https://129.213.203.42.sslip.io/actuator/prometheus) | Métricas RED de Rate, Errors e Duration para SLO |
+| **Healthcheck Geral** | [https://129.213.203.42.sslip.io/actuator/health](https://129.213.203.42.sslip.io/actuator/health) | Diagnóstico em tempo real de PostgreSQL, Redis e disco |
 
 ---
 

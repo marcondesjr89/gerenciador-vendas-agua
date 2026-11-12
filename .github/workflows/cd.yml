@@ -1,0 +1,50 @@
+name: CD Pipeline - Continuous Deployment to Oracle Cloud
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.local-project/**'
+
+jobs:
+  deploy:
+    name: Deploy to Oracle Cloud VM via SSH
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'marcondesjr89'
+
+    steps:
+      - name: Deploy on Remote Host via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.OCI_HOST || '129.213.203.42' }}
+          username: ${{ secrets.OCI_USERNAME || 'ubuntu' }}
+          key: ${{ secrets.OCI_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            echo ">>> [1/3] Atualizando repositorio no servidor..."
+            cd ~/gerenciador-vendas-agua
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo ">>> [2/3] Garantindo arquivo .env de producao..."
+            if [ ! -f .env ]; then
+              cat <<EOF > .env
+            SPRING_PROFILES_ACTIVE=prod
+            DOMAIN=129.213.203.42.sslip.io
+            DB_NAME=vendas_agua
+            DB_USER=postgres
+            DB_PASS=agua_prod_secret_2026!
+            FEATURE_FISCAL_RECEIPT_PREVIEW=true
+            FEATURE_FREE_DELIVERY_PROMO=false
+            EOF
+            fi
+
+            echo ">>> [3/3] Reconstruindo e reiniciando containers em producao..."
+            docker compose -f docker-compose.prod.yml up -d --build app
+
+            echo ">>> Verificando status dos containers:"
+            docker compose -f docker-compose.prod.yml ps
