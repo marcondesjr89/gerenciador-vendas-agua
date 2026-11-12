@@ -8,19 +8,13 @@ set -e
 
 echo ">>> [1/5] Atualizando pacotes do sistema operacional..."
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install -y ca-certificates curl gnupg lsb-release git iptables-persistent ufw
+sudo apt-get install -y ca-certificates curl gnupg lsb-release git iptables-persistent
 
-echo ">>> [2/5] Ajustando regras de firewall no Ubuntu (OCI / iptables / ufw)..."
-# Desbloquear portas 80, 443 e 22 no iptables interno do Ubuntu na Oracle
+echo ">>> [2/5] Ajustando regras de firewall no Ubuntu (OCI iptables)..."
+# Desbloquear portas 80 e 443 no iptables interno do Ubuntu na Oracle
 sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
 sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
 sudo netfilter-persistent save || true
-
-# Configurar ufw de forma consistente
-sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw --force enable || true
 
 echo ">>> [3/5] Instalando Docker Engine e Docker Compose Plugin..."
 if ! command -v docker &> /dev/null; then
