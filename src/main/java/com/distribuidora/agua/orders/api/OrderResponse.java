@@ -6,6 +6,8 @@ import com.distribuidora.agua.orders.domain.OrderStatus;
 import com.distribuidora.agua.orders.domain.PaymentMethod;
 import com.distribuidora.agua.platform.fiscal.FiscalReceipt;
 
+import org.hibernate.Hibernate;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -33,9 +35,10 @@ public record OrderResponse(
     }
 
     public static OrderResponse fromDomain(Order order, FiscalReceipt fiscalReceipt) {
-        List<OrderItemResponse> itemResponses = order.getItems() != null
-                ? order.getItems().stream().map(OrderItemResponse::fromDomain).toList()
-                : List.of();
+        List<OrderItemResponse> itemResponses = List.of();
+        if (order.getItems() != null && Hibernate.isInitialized(order.getItems())) {
+            itemResponses = order.getItems().stream().map(OrderItemResponse::fromDomain).toList();
+        }
 
         return new OrderResponse(
                 order.getId(),
