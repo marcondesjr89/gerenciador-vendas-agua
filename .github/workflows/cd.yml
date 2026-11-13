@@ -18,29 +18,56 @@ jobs:
       (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
 
     steps:
-      - name: Deploy on Remote Host via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.OCI_HOST }}
-          username: ${{ secrets.OCI_USERNAME }}
-          key: ${{ secrets.OCI_SSH_KEY }}
-          port: 22
-          script_stop: true
-          script: |
-            echo ">>> [1/3] Atualizando repositorio no servidor..."
-            cd ~/gerenciador-vendas-agua
-            git fetch origin main
-            git reset --hard origin/main
+      - name: Deploy to Remote VM with Resilience and Automatic Retry
+        env:
+          OCI_HOST: ${{ secrets.OCI_HOST }}
+          OCI_USERNAME: ${{ secrets.OCI_USERNAME }}
+          OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$OCI_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          trap 'rm -f ~/.ssh/id_rsa' EXIT
 
-            echo ">>> [2/3] Verificando integridade das variaveis de ambiente..."
-            if [ ! -f .env ]; then
-              echo "ERRO CRITICO: Arquivo .env de producao nao encontrado na VM!"
-              exit 1
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          SUCCESS=0
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo ">>> [Tentativa $ATTEMPT/$MAX_ATTEMPTS] Conectando via SSH em $OCI_USERNAME@$OCI_HOST..."
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i ~/.ssh/id_rsa "$OCI_USERNAME@$OCI_HOST" bash << 'EOF'
+              set -e
+              echo ">>> [1/3] Atualizando repositorio no servidor..."
+              cd ~/gerenciador-vendas-agua
+              git fetch origin main
+              git reset --hard origin/main
+
+              echo ">>> [2/3] Verificando integridade das variaveis de ambiente..."
+              if [ ! -f .env ]; then
+                echo "ERRO CRITICO: Arquivo .env de producao nao encontrado na VM!"
+                exit 1
+              fi
+
+              echo ">>> [3/3] Reconstruindo e reiniciando containers em producao..."
+              docker compose -f docker-compose.prod.yml up -d --build
+              docker compose -f docker-compose.prod.yml restart caddy
+
+              echo ">>> Verificando status dos containers:"
+              docker compose -f docker-compose.prod.yml ps
+          EOF
+            then
+              echo ">>> Deploy executado com sucesso na tentativa $ATTEMPT!"
+              SUCCESS=1
+              break
+            else
+              echo "AVISO: Falha na conexao SSH na tentativa $ATTEMPT. Aguardando 10 segundos para retentar..."
+              sleep 10
+              ATTEMPT=$((ATTEMPT + 1))
             fi
+          done
 
-            echo ">>> [3/3] Reconstruindo e reiniciando containers em producao..."
-            docker compose -f docker-compose.prod.yml up -d --build
-            docker compose -f docker-compose.prod.yml restart caddy
-
-            echo ">>> Verificando status dos containers:"
-            docker compose -f docker-compose.prod.yml ps
+          if [ $SUCCESS -ne 1 ]; then
+            echo "ERRO FATAL: Nao foi possivel conectar a VM Oracle Cloud apos $MAX_ATTEMPTS tentativas."
+            exit 1
+          fi
