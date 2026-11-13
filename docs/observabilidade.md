@@ -128,8 +128,7 @@ O projeto conta com provisionamento declarativo completo do **Prometheus** e **G
 
 ### 6.1. Acesso ao Grafana
 - **URL Local:** [http://localhost:3000](http://localhost:3000)
-- **Usuário Padrão:** `admin`
-- **Senha Padrão:** `admin`
+- **Credenciais de Acesso:** Parametrizadas de forma segura via variáveis de ambiente no arquivo `.env` (`GRAFANA_ADMIN_USER` e `GRAFANA_ADMIN_PASSWORD`), com valores padrão documentados em [.env.example](../.env.example).
 - **Nome do Dashboard:** `Gerenciador de Vendas de Água - Observabilidade & Métricas RED` (Pasta: `Observability`, UID: `agua-red-metrics`).
 
 ### 6.2. Estrutura dos Painéis do Dashboard

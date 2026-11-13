@@ -96,9 +96,9 @@ O compose inicializa os contêineres na ordem determinística através de *healt
 2. `agua_redis` (Redis 7.4 Alpine) na porta `6379`
 3. `agua_api` (Spring Boot Java 21 via multi-stage Dockerfile) na porta `8080`
 4. `agua_prometheus` (Prometheus v2.54.1) na porta `9090` (scraping a cada 5s de `/actuator/prometheus`)
-5. `agua_grafana` (Grafana 11.2.0) na porta `3000` (Dashboard RED provisionado automaticamente; login: `admin`/`admin`)
+5. `agua_grafana` (Grafana 11.2.0) na porta `3000` (Dashboard RED provisionado automaticamente; credenciais definidas via `.env`)
 
-Após a inicialização, o painel do Grafana está disponível em [http://localhost:3000](http://localhost:3000) (Dashboard: `Gerenciador de Vendas de Água - Observabilidade & Métricas RED`).
+Após a inicialização, o painel do Grafana está disponível em [http://localhost:3000](http://localhost:3000) (Dashboard: `Gerenciador de Vendas de Água - Observabilidade & Métricas RED`, autenticado via `GRAFANA_ADMIN_USER` e `GRAFANA_ADMIN_PASSWORD`).
 
 Para verificar o status da inicialização:
 ```bash
