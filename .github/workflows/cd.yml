@@ -40,6 +40,7 @@ jobs:
 
             echo ">>> [3/3] Reconstruindo e reiniciando containers em producao..."
             docker compose -f docker-compose.prod.yml up -d --build
+            docker compose -f docker-compose.prod.yml restart caddy
 
             echo ">>> Verificando status dos containers:"
             docker compose -f docker-compose.prod.yml ps
