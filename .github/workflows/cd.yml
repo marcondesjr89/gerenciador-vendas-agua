@@ -2,19 +2,20 @@ name: CD Pipeline - Continuous Deployment to Oracle Cloud
 
 on:
   workflow_dispatch:
-  push:
+  workflow_run:
+    workflows: ["CI Pipeline - Project Final Level A"]
+    types:
+      - completed
     branches:
       - main
-    paths-ignore:
-      - 'README.md'
-      - 'docs/**'
-      - '.local-project/**'
 
 jobs:
   deploy:
     name: Deploy to Oracle Cloud VM via SSH
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'marcondesjr89'
+    if: |
+      github.repository_owner == 'marcondesjr89' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
 
     steps:
       - name: Deploy on Remote Host via SSH
