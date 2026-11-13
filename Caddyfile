@@ -18,11 +18,8 @@
         -Server
     }
 
-    # Redirecionamento amigavel de /grafana para /grafana/
-    redir /grafana /grafana/
-
-    # Proxy reverso para o Grafana sob o subcaminho /grafana/
-    handle /grafana/* {
+    # Proxy reverso para o Grafana sob o subcaminho /grafana
+    handle /grafana* {
         reverse_proxy grafana:3000 {
             transport http {
                 response_header_timeout 60s
