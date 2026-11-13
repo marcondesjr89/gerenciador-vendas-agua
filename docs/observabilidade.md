@@ -122,20 +122,64 @@ Objetivo (SLO) | Indicador (SLI) | Fórmula de Cálculo Prometheus | Meta Mensal
 
 ---
 
-## 6. Verificação e Raspagem de Métricas
+## 6. Painéis e Visualização no Grafana (Dashboard RED Provisionado)
+
+O projeto conta com provisionamento declarativo completo do **Prometheus** e **Grafana** via Docker Compose (`docker-compose.yml`), carregando automaticamente o datasource e o dashboard de métricas RED sem qualquer etapa de configuração manual.
+
+### 6.1. Acesso ao Grafana
+- **URL Local:** [http://localhost:3000](http://localhost:3000)
+- **Usuário Padrão:** `admin`
+- **Senha Padrão:** `admin`
+- **Nome do Dashboard:** `Gerenciador de Vendas de Água - Observabilidade & Métricas RED` (Pasta: `Observability`, UID: `agua-red-metrics`).
+
+### 6.2. Estrutura dos Painéis do Dashboard
+
+O dashboard está estruturado em 4 seções visuais (*Rows*) projetadas para auditoria em bancas e monitoramento operacional:
+
+1. **🎯 1. SLOs & Visão Executiva (Executive & SLO Overview):**
+   - **Uptime da Aplicação:** Tempo total de execução contínua (`process_uptime_seconds`).
+   - **Disponibilidade HTTP (SLO $\ge 99.5\%$):** Proporção de requisições sem erros 5xx nos últimos 5 minutos.
+   - **Total de Pedidos Criados:** Contador acumulado de pedidos de venda (`orders_created_total`).
+   - **Pagamentos Liquidados:** Total de transações com status `PAID` (`payments_processed_total`).
+   - **Taxa de Erro 5xx (SLO $< 1.0\%$):** Gauge com cores indicativas (Verde $<0.5\%$, Amarelo $<1.0\%$, Vermelho $\ge 1.0\%$).
+
+2. **🚦 2. Métricas RED de Transporte HTTP (HTTP RED Metrics):**
+   - **Taxa de Requisições por Endpoint (Rate / RPS):** Gráfico temporal de requisições por segundo segregadas por URI (`sum(rate(http_server_requests_seconds_count[1m])) by (uri)`).
+   - **Taxa de Erros HTTP (Errors):** Distribuição temporal de respostas 4xx e 5xx por código e rota.
+   - **Latência HTTP (Duration):** Linhas temporais dos percentis p50 (mediana), p95 (meta SLO $< 200\text{ms}$) e p99 (cauda sob stress) com linha de limiar em 200ms.
+
+3. **💼 3. Métricas RED de Negócio & Domínio (Business RED Metrics):**
+   - **Criação de Pedidos por Modalidade:** Gráfico de barras temporais comparando vendas de `BALCAO` vs `ENTREGA`.
+   - **Erros de Criação de Pedido:** Falhas de negócio instrumentadas (ex: `InsufficientStockException`).
+   - **Pagamentos por Método & Status:** Transações por forma de pagamento (`PIX`, `CARD`, `CASH`, `TRANSFER`) e status (`PAID` vs `FAILED`).
+   - **Duração Transacional de Domínio:** Tempo médio (ms) da transação atômica de criação de pedido e da liquidação com lock no Redis.
+
+4. **⚙️ 4. Infraestrutura & Runtime da JVM (JVM & Connection Pool Resources):**
+   - **Memória Heap da JVM (Java 21):** Consumo em tempo real de memória heap usada vs limite configurado.
+   - **Pool de Conexões HikariCP:** Monitoramento de conexões ativas, conexões ociosas (*idle*) e threads aguardando liberação.
+   - **Consumo de CPU:** Uso percentual da CPU pela JVM e pelo sistema operacional hospedeiro.
+
+---
+
+## 7. Verificação e Raspagem de Métricas
 
 Para testar a infraestrutura de observabilidade localmente:
 
-1. **Logs Estruturados:** Inicie a aplicação (`docker compose up` ou `.\mvnw.cmd spring-boot:run`) e observe a saída no terminal. Todo evento será impresso em linha única JSON com `traceId` e `spanId`.
-2. **Scrape Prometheus:**
+1. **Subida Completa da Stack:**
+   ```bash
+   docker compose up -d --build
+   ```
+   Isso inicializa o PostgreSQL, Redis, Spring Boot API, Prometheus e Grafana.
+2. **Acesso ao Dashboard:** Abra [http://localhost:3000](http://localhost:3000) e localize o dashboard na pasta `Observability`.
+3. **Scrape Prometheus:**
    ```bash
    curl -s http://localhost:8080/actuator/prometheus | grep -E "(http_server_requests|orders_|payments_)"
    ```
-3. **Healthcheck:**
+4. **Healthcheck:**
    ```bash
    curl -s http://localhost:8080/actuator/health
    ```
-4. **Header de Correlação:**
+5. **Header de Correlação:**
    ```bash
    curl -i http://localhost:8080/api/v1/catalog/products
    # Observe o cabeçalho X-Trace-Id na resposta HTTP
