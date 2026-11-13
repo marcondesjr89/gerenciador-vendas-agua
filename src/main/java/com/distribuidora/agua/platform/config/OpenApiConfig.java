@@ -32,8 +32,9 @@ public class OpenApiConfig {
                                 .name("MIT")
                                 .url("https://opensource.org/licenses/MIT")))
                 .servers(List.of(
-                        new Server().url("http://localhost:8080").description("Ambiente Local de Desenvolvimento"),
-                        new Server().url("https://api.distribuidora-agua.com.br").description("Ambiente de Produção (PaaS)")
+                        new Server().url("/").description("Servidor Atual (Padrão - HTTPS / Local)"),
+                        new Server().url("https://129.213.203.42.sslip.io").description("Produção Oracle Cloud (HTTPS)"),
+                        new Server().url("http://localhost:8080").description("Ambiente Local de Desenvolvimento")
                 ))
                 .tags(List.of(
                         new Tag().name("Catalog").description("Catálogo de Produtos, Estoque Dual (Cheio/Vazio) e Ajustes"),

@@ -16,4 +16,4 @@
 ---
 
 ## 📜 Declaração de Autoria e Integridade Acadêmica
-Declaro que o presente projeto foi desenvolvido por mim, cumprindo integralmente as exigências técnicas da rubrica do **Projeto A (100 pontos)**. Todas as decisões de arquitetura e implementação foram fundamentadas em Registros de Decisão Arquitetural (ADRs) e estão aptas para defesa técnica ao vivo.
+Declaro que o presente projeto foi desenvolvido por mim, cumprindo integralmente as exigências técnicas da rubrica do **Projeto A (100 pontos)**. Todas as decisões de arquitetura e implementação foram fundamentadas em Registros de Decisão Arquitetural (ADRs) e estão aptas para a apresentação em video.

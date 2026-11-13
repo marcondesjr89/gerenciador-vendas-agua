@@ -22,7 +22,8 @@ class OpenApiConfigTest {
         assertThat(openAPI.getInfo().getDescription()).isNotBlank();
         assertThat(openAPI.getInfo().getContact()).isNotNull();
         assertThat(openAPI.getInfo().getContact().getEmail()).isEqualTo("engenharia@distribuidora-agua.com.br");
-        assertThat(openAPI.getServers()).hasSize(2);
+        assertThat(openAPI.getServers()).hasSize(3);
+        assertThat(openAPI.getServers().getFirst().getUrl()).isEqualTo("/");
         assertThat(openAPI.getTags()).hasSize(5);
         assertThat(openAPI.getTags())
                 .extracting("name")
