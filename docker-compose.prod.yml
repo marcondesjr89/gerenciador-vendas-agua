@@ -66,6 +66,59 @@ services:
     networks:
       - agua_internal_network
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: agua_prometheus_prod
+    restart: always
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data_prod:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - agua_internal_network
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: agua_grafana_prod
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_SERVER_ROOT_URL: "https://grafana.${DOMAIN:-localhost}/"
+    volumes:
+      - ./deploy/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data_prod:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - agua_internal_network
+
   caddy:
     image: caddy:2.8-alpine
     container_name: agua_caddy_prod
@@ -82,6 +135,8 @@ services:
     depends_on:
       app:
         condition: service_healthy
+      grafana:
+        condition: service_healthy
     networks:
       - agua_internal_network
 
@@ -93,6 +148,10 @@ volumes:
   caddy_data_prod:
     driver: local
   caddy_config_prod:
+    driver: local
+  prometheus_data_prod:
+    driver: local
+  grafana_data_prod:
     driver: local
 
 networks:

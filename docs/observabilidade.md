@@ -127,6 +127,7 @@ Objetivo (SLO) | Indicador (SLI) | Fórmula de Cálculo Prometheus | Meta Mensal
 O projeto conta com provisionamento declarativo completo do **Prometheus** e **Grafana** via Docker Compose (`docker-compose.yml`), carregando automaticamente o datasource e o dashboard de métricas RED sem qualquer etapa de configuração manual.
 
 ### 6.1. Acesso ao Grafana
+- **URL Pública Oficial (Nuvem OCI):** [https://grafana.129.213.203.42.sslip.io](https://grafana.129.213.203.42.sslip.io) (Modo Viewer Anônimo habilitado para avaliação sem credenciais).
 - **URL Local:** [http://localhost:3000](http://localhost:3000)
 - **Credenciais de Acesso:** Parametrizadas de forma segura via variáveis de ambiente no arquivo `.env` (`GRAFANA_ADMIN_USER` e `GRAFANA_ADMIN_PASSWORD`), com valores padrão documentados em [.env.example](../.env.example).
 - **Nome do Dashboard:** `Gerenciador de Vendas de Água - Observabilidade & Métricas RED` (Pasta: `Observability`, UID: `agua-red-metrics`).
