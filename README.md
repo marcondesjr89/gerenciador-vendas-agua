@@ -22,7 +22,7 @@ A aplicação está hospedada e em execução contínua em infraestrutura de nuv
 | **Catálogo de Produtos** | [https://129.213.203.42.sslip.io/api/v1/catalog/products](https://129.213.203.42.sslip.io/api/v1/catalog/products) | Produtos, litragens e saldo de estoque dual com cache Redis |
 | **Consulta Paginada (Base 100k)** | [https://129.213.203.42.sslip.io/api/v1/orders?page=0&size=10](https://129.213.203.42.sslip.io/api/v1/orders?page=0&size=10) | Consulta otimizada por índice composto sobre 100.000 pedidos |
 | **Métricas RED Prometheus** | [https://129.213.203.42.sslip.io/actuator/prometheus](https://129.213.203.42.sslip.io/actuator/prometheus) | Métricas RED de Rate, Errors e Duration para SLO |
-| **Dashboard Grafana (Métricas RED)** | [https://129.213.203.42.sslip.io/grafana/](https://129.213.203.42.sslip.io/grafana/) | Visualização analítica em tempo real (Modo Viewer Anônimo) |
+| **Dashboard Grafana (Métricas RED)** | [https://129.213.203.42.sslip.io/grafana/d/agua-red-metrics/](https://129.213.203.42.sslip.io/grafana/d/agua-red-metrics/) | Visualização analítica em tempo real (Modo Viewer Anônimo) |
 | **Healthcheck Geral** | [https://129.213.203.42.sslip.io/actuator/health](https://129.213.203.42.sslip.io/actuator/health) | Diagnóstico em tempo real de PostgreSQL, Redis e disco |
 
 ---
