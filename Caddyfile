@@ -14,24 +14,39 @@
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
         -Server
+    }
+
+    # Redirecionamento amigavel de /grafana para /grafana/
+    redir /grafana /grafana/
+
+    # Proxy reverso para o Grafana sob o subcaminho /grafana/
+    handle /grafana/* {
+        reverse_proxy grafana:3000 {
+            transport http {
+                response_header_timeout 60s
+                dial_timeout 10s
+            }
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
     # Proxy reverso para o container da API Spring Boot
-    reverse_proxy app:8080 {
-        # Timeout e politicas de conexao resiliente
-        transport http {
-            response_header_timeout 60s
-            dial_timeout 10s
+    handle {
+        reverse_proxy app:8080 {
+            transport http {
+                response_header_timeout 60s
+                dial_timeout 10s
+            }
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
         }
-
-        # Preservacao de headers originais do cliente
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
     }
 
     # Logs de acesso estruturados
@@ -40,35 +55,3 @@
         format json
     }
 }
-
-grafana.{$DOMAIN:localhost} {
-    # Compressao gzip e zstd para respostas HTTP otimizadas
-    encode gzip zstd
-
-    # Headers padronizados de seguranca HTTP
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        X-Content-Type-Options "nosniff"
-        Referrer-Policy "strict-origin-when-cross-origin"
-        -Server
-    }
-
-    # Proxy reverso para o container do Grafana
-    reverse_proxy grafana:3000 {
-        transport http {
-            response_header_timeout 60s
-            dial_timeout 10s
-        }
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-
-    # Logs de acesso estruturados
-    log {
-        output stdout
-        format json
-    }
-}
-
